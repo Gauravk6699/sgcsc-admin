@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Fee Receipt</title>
+
+<style>
+body{
+    font-family:Arial, sans-serif;
+    background:#f2f2f2;
+}
+.receipt{
+    width:490px;
+    margin:20px auto;
+    background:#fff;
+    border:4px solid #25D366;
+    padding:8px;
+    font-size:12px;
+    position:relative;
+}
+
+/* TOP SGCSC WHATSAPP STYLE */
+.center-name{
+    width:100%;
+    margin:5px auto 2px auto;
+    background:#25D366;
+    color:#fff;
+    text-align:center;
+    font-weight:bold;
+    font-size:16px;
+    padding:5px 0;
+    border-radius:10px;
+    letter-spacing:2px;
+    box-shadow:0 2px 4px rgba(0,0,0,0.2);
+}
+.center-address{
+    text-align:center;
+    font-size:13px;
+    margin-bottom:10px;
+    color:#444;
+}
+
+/* Student section */
+.student{
+    display:flex;
+    justify-content:space-between;
+}
+.details{
+    flex:1;
+    margin:0 8px;
+}
+.row{margin-bottom:3px;}
+.label{
+    display:inline-block;
+    width:110px;
+    font-weight:bold;
+}
+
+/* Fee Receipt WhatsApp style */
+.fee-title{
+    margin:8px auto;
+    width:75%;
+    background:#25D366;
+    color:#fff;
+    text-align:center;
+    font-weight:bold;
+    padding:8px 0;
+    border-radius:30px;
+    letter-spacing:1px;
+    box-shadow:0 2px 4px rgba(0,0,0,0.2);
+}
+
+/* Photo & QR */
+.photo img,
+.qr img{
+    width:90px;
+    height:90px;
+    border:1px solid #000;
+    object-fit:cover;
+}
+
+/* Table */
+table{
+    width:100%;
+    border-collapse:collapse;
+    font-size:11px;
+    margin-top:6px;
+}
+th,td{
+    border:1px solid #000;
+    padding:3px;
+    text-align:center;
+}
+th{background:#eaeaea;}
+
+/* Footer */
+.footer{
+    margin-top:6px;
+    font-size:10px;
+}
+
+/* WhatsApp Button */
+.whatsapp-btn{
+    display:block;
+    margin-top:10px;
+    padding:10px;
+    background:#25D366;
+    color:#fff;
+    text-align:center;
+    text-decoration:none;
+    font-size:14px;
+    border-radius:25px;
+    font-weight:bold;
+}
+</style>
+</head>
+<body>
+<div class="receipt">
+
+<!-- SGCSC WHATSAPP STYLE -->
+<div class="center-name"> <HR>SHREE GANPATI COMPUTER AND STUDY CENTRE<HR></div>
+<div class="center-address"><U>RAIPUR CHIRAIYAKOT MAU</U></div>
+
+<!-- STUDENT DETAILS -->
+<div class="student">
+
+    <div class="photo">
+        <img src="E:\SGCSC\images\info-list-img4.pNg" alt="Student Photo">
+    </div>
+
+    <div class="details">
+        <div class="row"><span class="label">Student's Name</span>: Aman Pasawan</div>
+        <div class="row"><span class="label">Father's Name</span>: Sanjay Pasawan</div>
+        <div class="row"><span class="label">Date of Birth's</span>: 15-08-2003</div>
+        <div class="row"><span class="label">Course Name</span>: DCA</div>
+        <div class="row"><span class="label">Admission Date</span>: 01-01-2025</div>
+        <div class="row"><span class="label">Receipt No</span>: 001</div>
+
+        <div class="fee-title">STUDENT'S FEE RECEIPT</div>
+    </div>
+
+    <div class="qr">
+        <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=Fee%20Receipt" alt="QR Code">
+    </div>
+
+</div>
+
+<!-- TABLE -->
+<table>
+<tr>
+    <th>Month</th>
+    <th>Date</th>
+    <th>Paid</th>
+    <th>Due</th>
+</tr>
+<tr><td>Jan</td><td>01-01-25</td><td>600</td><td>200</td></tr>
+<tr><td>Feb</td><td>01-02-25</td><td>600</td><td>200</td></tr>
+<tr><td>Mar</td><td>01-03-25</td><td>600</td><td>200</td></tr>
+<tr><td>Apr</td><td>01-04-25</td><td>600</td><td>200</td></tr>
+<tr><td>May</td><td>01-05-25</td><td>600</td><td>200</td></tr>
+<tr><td>Jun</td><td>01-06-25</td><td>600</td><td>200</td></tr>
+<tr><td>Jul</td><td>01-07-25</td><td>600</td><td>200</td></tr>
+<tr><td>Aug</td><td>01-08-25</td><td>600</td><td>200</td></tr>
+<tr><td>Sep</td><td>01-09-25</td><td>600</td><td>200</td></tr>
+<tr><td>Oct</td><td>01-10-25</td><td>600</td><td>200</td></tr>
+<tr><td>Nov</td><td>01-11-25</td><td>600</td><td>200</td></tr>
+<tr><td>Dec</td><td>01-12-25</td><td>600</td><td>200</td></tr>
+<tr>
+    <th>Total</th>
+    <th>-</th>
+    <th>7200</th>
+    <th>2400</th>
+</tr>
+</table>
+
+<!-- FOOTER -->
+<div class="footer">
+         Received By: ..............................................................................................................All fees are non-refundable
+</div><BR>
+
+<!-- SEND WHATSAPP -->
+<a class="whatsapp-btn"
+href="https://api.whatsapp.com/send?phone=919889624850&text=FEE%20RECEIPT%0AStudent:%20Aman%20Pasawan%0AReceipt%20No:%20001%0ATotal%20Paid:%20Rs.%207200%0ADue:%20Rs.%202400"
+target="_blank">
+Send on WhatsApp
+</a>
+
+</div>
+
+</body>
+</html>
