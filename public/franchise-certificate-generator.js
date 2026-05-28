@@ -243,17 +243,9 @@ var FranchiseCertificateGenerator = (() => {
   // Fetch config from API and apply
   // ─────────────────────────────────────────────
   async function fetchConfigFromAPI(apiBaseUrl = '/api/settings') {
-    try {
-      const response = await fetch(`${apiBaseUrl}/certificate-template`);
-      const data = await response.json();
-      if (data.success && data.data && data.data.franchiseCertificate) {
-        CONFIG.fields = { ...CONFIG.fields, ...data.data.franchiseCertificate };
-        console.log('Template config loaded from API:', CONFIG.fields);
-        return true;
-      }
-    } catch (err) {
-      console.warn('Failed to fetch template config from API:', err);
-    }
+    // API config is currently not calibrated for the franchise certificate template.
+    // Skip loading to avoid overriding correct hardcoded positions.
+    console.log('FranchiseCertificate: using built-in field positions (API config skipped)');
     return false;
   }
 

@@ -52,7 +52,6 @@ const FIELD_LABELS = {
   subjectRowHeight: "Subject Row Height (%)",
   trainingCentreName: "Training Centre Name",
   applicantName: "Applicant Name",
-  centerName: "Center Name",
   atcCode2: "ATC Code 2",
   dateOfRenewal: "Date of Renewal",
   studentNameCombined: "Student Name (Combined)",
