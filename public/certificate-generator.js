@@ -78,14 +78,10 @@ var CertificateGenerator = (() => {
 
     try {
       if (typeof QRious === 'undefined') throw new Error('QRious not loaded');
-      const qr = new QRious({ value: verifyUrl, size: size, background: 'white', foreground: 'black' });
-      // Draw QR via offscreen canvas to avoid HTMLImageElement load timing issue
       const qrCanvas = document.createElement('canvas');
       qrCanvas.width  = size;
       qrCanvas.height = size;
-      const qrCtx = qrCanvas.getContext('2d');
-      // QRious draws directly to a canvas if you pass it
-      const qrDirect = new QRious({ element: qrCanvas, value: verifyUrl, size: size, background: 'white', foreground: 'black' });
+      new QRious({ element: qrCanvas, value: verifyUrl, size: size, background: 'white', foreground: 'black' });
       _ctx.drawImage(qrCanvas, x, y, size, size);
       console.log('QR drawn at', x, y, size, 'for', verifyUrl);
     } catch (e) {
@@ -132,8 +128,8 @@ var CertificateGenerator = (() => {
       throw new Error('Template not loaded. Call loadTemplate() first.');
     }
 
-    _canvas.width  = _templateImg.naturalWidth;   // 5662
-    _canvas.height = _templateImg.naturalHeight;  // 8000
+    _canvas.width  = _templateImg.naturalWidth;
+    _canvas.height = _templateImg.naturalHeight;
     console.log('Canvas size:', _canvas.width, 'x', _canvas.height);
 
     _ctx.imageSmoothingEnabled = true;
@@ -161,23 +157,32 @@ var CertificateGenerator = (() => {
     return _canvas;
   }
 
-  // ── PDF: A4 portrait 210×297mm — fixes Chrome 16% zoom ───────────────────
-  // Template is 5662×8000px, ratio 0.7077 ≈ A4 portrait ratio 0.7071.
-  // Hardcoding A4 instead of deriving page size from pixels is what fixes
-  // Chrome opening at 16% — Chrome recognises A4 as a standard paper size.
+  // ── PDF: A4 portrait 210×297mm ────────────────────────────────────────────
+  // FIX: Using unit:'mm' with format:'a4' instead of unit:'px'.
+  //
+  // Root cause of the Chrome zoom bug:
+  //   jsPDF's unit:'px' writes raw pixel values as PDF page dimensions.
+  //   PDF coordinates are in points (1pt = 1/72 inch), so a "800px" page
+  //   becomes an 11-inch-wide document — Chrome opens it massively zoomed
+  //   in with no room to zoom out.
+  //
+  // Fix: unit:'mm' + format:'a4' writes a standard 210×297mm page.
+  //   Chrome and Acrobat recognise A4 as a normal paper size and open
+  //   it at a comfortable default zoom (100% or "fit page").
+  //   The certificate image fills the page exactly at (0, 0, 210, 297) mm.
   function _canvasToPDF() {
     const { jsPDF } = window.jspdf;
 
-    // ── Fix Chrome zoom by matching PDF page size to screen pixels ───────────
-    // Chrome opens PDFs at 100% physical size based on page dimensions.
-    // Strategy: make the PDF page exactly 800x1132px (in px units) which is
-    // a comfortable fit for most screens. Chrome will open it at ~100% zoom.
-    // The certificate image is scaled to fill this page exactly.
+    // A4 dimensions in mm
+    const PAGE_W_MM = 210;
+    const PAGE_H_MM = 297;
 
-    const PAGE_PX_W = 800;
-    const PAGE_PX_H = Math.round(PAGE_PX_W * (_canvas.height / _canvas.width));
+    // Rasterise canvas at 150 DPI for a good quality/size balance.
+    // 150 DPI on A4 = ~1240 × 1754 px — sharp enough for print, not oversized.
+    const DPI       = 150;
+    const PAGE_PX_W = Math.round((PAGE_W_MM / 25.4) * DPI);  // ~1240
+    const PAGE_PX_H = Math.round((PAGE_H_MM / 25.4) * DPI);  // ~1754
 
-    // Downscale canvas to page pixel dimensions
     const off  = document.createElement('canvas');
     off.width  = PAGE_PX_W;
     off.height = PAGE_PX_H;
@@ -188,16 +193,13 @@ var CertificateGenerator = (() => {
 
     const imgData = off.toDataURL('image/jpeg', 0.92);
 
-    // Use px as unit — page size = exact pixel dimensions
-    // Chrome reads this as "800x1132 pixel page" and opens at ~100% zoom
     const pdf = new jsPDF({
-      orientation: PAGE_PX_W >= PAGE_PX_H ? 'landscape' : 'portrait',
-      unit: 'px',
-      format: [PAGE_PX_W, PAGE_PX_H],
-      hotfixes: ['px_scaling']
+      orientation: 'portrait',
+      unit: 'mm',
+      format: 'a4',
     });
 
-    pdf.addImage(imgData, 'JPEG', 0, 0, PAGE_PX_W, PAGE_PX_H);
+    pdf.addImage(imgData, 'JPEG', 0, 0, PAGE_W_MM, PAGE_H_MM);
     return pdf;
   }
 

@@ -5,287 +5,38 @@ import API from "../api/axiosInstance";
 // eslint-disable-next-line no-undef
 const MarksheetGenerator = window.MarksheetGenerator;
 
-function fmtDate(d) {
-  if (!d) return '-';
-  const dt = new Date(d);
-  if (Number.isNaN(dt.getTime())) return '-';
-  return dt.toLocaleDateString('en-IN');
-}
-
-// Function to generate PDF content as HTML and open in new window for printing
-const generateMarksheetPDF = (marksheet) => {
-  const printWindow = window.open('', '_blank', 'width=900,height=1000');
-  
-  if (!printWindow) {
-    alert('Please allow popups to print the marksheet');
-    return;
-  }
-
-  // Generate subjects table rows
-  const subjectsRows = marksheet.subjects.map((subject, index) => `
-    <tr>
-      <td>${index + 1}</td>
-      <td>${subject.subjectName || '-'}</td>
-      <td>${subject.theoryMarks || 0}</td>
-      <td>${subject.practicalMarks || 0}</td>
-      <td>${subject.combinedMarks || 0}</td>
-      <td>${subject.maxCombinedMarks || 0}</td>
-      <td>${subject.grade || '-'}</td>
-    </tr>
-  `).join('');
-
-  const htmlContent = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <title>Marksheet - ${marksheet.rollNumber}</title>
-      <style>
-        * {
-          margin: 0;
-          padding: 0;
-          box-sizing: border-box;
-        }
-        body {
-          font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-          padding: 20px;
-        }
-        .marksheet {
-          max-width: 800px;
-          margin: 0 auto;
-          border: 2px solid #333;
-          padding: 20px;
-        }
-        .header {
-          text-align: center;
-          margin-bottom: 20px;
-          padding-bottom: 15px;
-          border-bottom: 2px solid #333;
-        }
-        .header h1 {
-          font-size: 24px;
-          margin-bottom: 5px;
-        }
-        .header h2 {
-          font-size: 18px;
-          color: #666;
-        }
-        .title {
-          text-align: center;
-          font-size: 20px;
-          font-weight: bold;
-          margin-bottom: 20px;
-          text-decoration: underline;
-        }
-        .details {
-          display: table;
-          width: 100%;
-          margin-bottom: 20px;
-        }
-        .detail-row {
-          display: table-row;
-        }
-        .detail-label {
-          display: table-cell;
-          padding: 8px 5px;
-          font-weight: bold;
-          width: 40%;
-        }
-        .detail-value {
-          display: table-cell;
-          padding: 8px 5px;
-          border-bottom: 1px solid #ddd;
-        }
-        .subjects-table {
-          width: 100%;
-          border-collapse: collapse;
-          margin: 20px 0;
-        }
-        .subjects-table th,
-        .subjects-table td {
-          border: 1px solid #333;
-          padding: 8px;
-          text-align: center;
-        }
-        .subjects-table th {
-          background-color: #f0f0f0;
-          font-weight: bold;
-        }
-        .summary {
-          margin-top: 20px;
-          padding: 15px;
-          background-color: #f9f9f9;
-          border: 1px solid #ddd;
-        }
-        .summary-grid {
-          display: table;
-          width: 100%;
-        }
-        .summary-row {
-          display: table-row;
-        }
-        .summary-label {
-          display: table-cell;
-          padding: 5px;
-          font-weight: bold;
-        }
-        .summary-value {
-          display: table-cell;
-          padding: 5px;
-        }
-        .footer {
-          margin-top: 25px;
-          padding-top: 15px;
-          border-top: 1px solid #ddd;
-          display: flex;
-          justify-content: space-between;
-        }
-        .signature {
-          text-align: center;
-          width: 200px;
-        }
-        .signature-line {
-          border-top: 1px solid #333;
-          margin-top: 40px;
-          padding-top: 5px;
-          font-size: 12px;
-        }
-        .print-btn {
-          position: fixed;
-          top: 20px;
-          right: 20px;
-          padding: 10px 20px;
-          background-color: #007bff;
-          color: white;
-          border: none;
-          cursor: pointer;
-          font-size: 16px;
-        }
-        @media print {
-          .print-btn {
-            display: none;
-          }
-        }
-      </style>
-    </head>
-    <body>
-      <button class="print-btn" onclick="window.print()">Print Marksheet</button>
-      <div class="marksheet">
-        <div class="header">
-          <h1>${marksheet.instituteName || 'Institute Name'}</h1>
-          <h2>MARKSHEET</h2>
-        </div>
-        
-        <div class="title">Student Details</div>
-        
-        <div class="details">
-          <div class="detail-row">
-            <div class="detail-label">Enrollment Number:</div>
-            <div class="detail-value">${marksheet.enrollmentNo || '-'}</div>
-          </div>
-          <div class="detail-row">
-            <div class="detail-label">Roll Number:</div>
-            <div class="detail-value">${marksheet.rollNumber || '-'}</div>
-          </div>
-          <div class="detail-row">
-            <div class="detail-label">Student Name:</div>
-            <div class="detail-value">${marksheet.studentName || '-'}</div>
-          </div>
-          <div class="detail-row">
-            <div class="detail-label">Father/Husband Name:</div>
-            <div class="detail-value">${marksheet.fatherName || '-'}</div>
-          </div>
-          <div class="detail-row">
-            <div class="detail-label">Mother Name:</div>
-            <div class="detail-value">${marksheet.motherName || '-'}</div>
-          </div>
-          <div class="detail-row">
-            <div class="detail-label">Date of Birth:</div>
-            <div class="detail-value">${fmtDate(marksheet.dob)}</div>
-          </div>
-          <div class="detail-row">
-            <div class="detail-label">Course Name:</div>
-            <div class="detail-value">${marksheet.courseName || '-'}</div>
-          </div>
-          <div class="detail-row">
-            <div class="detail-label">Course Duration:</div>
-            <div class="detail-value">${marksheet.courseDuration || '-'}</div>
-          </div>
-          <div class="detail-row">
-            <div class="detail-label">Course Period:</div>
-            <div class="detail-value">${fmtDate(marksheet.coursePeriodFrom)} to ${fmtDate(marksheet.coursePeriodTo)}</div>
-          </div>
-        </div>
-        
-        <div class="title">Marks Details</div>
-        
-        <table class="subjects-table">
-          <thead>
-            <tr>
-              <th>S.No.</th>
-              <th>Subject Name</th>
-              <th>Theory Marks</th>
-              <th>Practical Marks</th>
-              <th>Combined Marks</th>
-              <th>Max Marks</th>
-              <th>Grade</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${subjectsRows}
-          </tbody>
-        </table>
-        
-        <div class="summary">
-          <h3 style="text-align: center; margin-bottom: 10px;">Summary</h3>
-          <div class="summary-grid">
-            <div class="summary-row">
-              <div class="summary-label">Total Theory Marks:</div>
-              <div class="summary-value">${marksheet.totalTheoryMarks || 0}</div>
-            </div>
-            <div class="summary-row">
-              <div class="summary-label">Total Practical Marks:</div>
-              <div class="summary-value">${marksheet.totalPracticalMarks || 0}</div>
-            </div>
-            <div class="summary-row">
-              <div class="summary-label">Total Combined Marks:</div>
-              <div class="summary-value">${marksheet.totalCombinedMarks || 0} / ${marksheet.maxTotalMarks || 0}</div>
-            </div>
-            <div class="summary-row">
-              <div class="summary-label">Percentage:</div>
-              <div class="summary-value">${marksheet.percentage ? marksheet.percentage.toFixed(2) : 0}%</div>
-            </div>
-            <div class="summary-row">
-              <div class="summary-label">Overall Grade:</div>
-              <div class="summary-value">${marksheet.overallGrade || '-'}</div>
-            </div>
-          </div>
-        </div>
-        
-        <div class="footer">
-          <div class="signature">
-            <div class="signature-line">Student Signature</div>
-          </div>
-          <div class="signature">
-            <div class="signature-line">Authorized Signature</div>
-          </div>
-        </div>
-      </div>
-    </body>
-    </html>
-  `;
-  
-  printWindow.document.write(htmlContent);
-  printWindow.document.close();
-};
+let marksheetGenerator = null;
 
 export default function MarksheetList() {
   const [marksheets, setMarksheets] = useState([]);
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState('');
   const [search, setSearch] = useState('');
-  const [templateLoaded, setTemplateLoaded] = useState(false);
   const [viewImage, setViewImage] = useState(null);
   const [showViewModal, setShowViewModal] = useState(false);
+
+  const initGenerator = async () => {
+    if (marksheetGenerator) return marksheetGenerator;
+
+    if (typeof MarksheetGenerator !== 'undefined') {
+      try {
+        console.log('Loading marksheet template...');
+        const apiBaseUrl = process.env.REACT_APP_API_URL || 'https://sgcsc-backend.onrender.com/api';
+        await MarksheetGenerator.fetchConfigFromAPI(apiBaseUrl);
+        await MarksheetGenerator.loadTemplate('/marksheet-template.jpeg');
+        console.log('Marksheet template loaded successfully');
+        marksheetGenerator = MarksheetGenerator;
+        return marksheetGenerator;
+      } catch (err) {
+        console.error('Failed to load marksheet template:', err);
+        marksheetGenerator = MarksheetGenerator;
+        return marksheetGenerator;
+      }
+    } else {
+      console.warn('MarksheetGenerator not defined');
+      return null;
+    }
+  };
 
   const loadAll = async () => {
     setLoading(true);
@@ -308,69 +59,87 @@ export default function MarksheetList() {
 
   useEffect(() => {
     console.log('MarksheetList mounted, loading marksheets...');
-    loadAll(); // Load marksheets on component mount
-  }, []);
-
-  useEffect(() => {
-    const initGenerator = async () => {
-      if (typeof MarksheetGenerator !== 'undefined') {
-        try {
-          console.log('Loading marksheet template...');
-          // First try to load template config from API
-          const apiBaseUrl = process.env.REACT_APP_API_URL || 'https://sgcsc-backend.onrender.com/api';
-          await MarksheetGenerator.fetchConfigFromAPI(apiBaseUrl);
-          // Then load the template image
-          await MarksheetGenerator.loadTemplate('/marksheet-template.jpeg');
-          console.log('Marksheet template loaded successfully');
-          setTemplateLoaded(true);
-        } catch (err) {
-          console.error('Failed to load marksheet template:', err);
-          // Fallback to HTML generation
-          setTemplateLoaded(false);
-        }
-      } else {
-        console.warn('MarksheetGenerator not defined');
-      }
-    };
+    loadAll();
     initGenerator();
   }, []);
 
-  // Function to handle download using template-based generator
-  const handleTemplateDownload = async (marksheet) => {
-    console.log('handleTemplateDownload called:', { templateLoaded, marksheet });
+  const handleDownload = async (marksheet) => {
+    if (!marksheet) return;
+    
+    const generator = await initGenerator();
+    
+    if (!generator) {
+      setMsg('Failed to load marksheet generator. Please check if the template is uploaded.');
+      return;
+    }
+    
+    try {
+      await generator.download({
+        enrollmentNo: marksheet.enrollmentNo,
+        studentName: marksheet.studentName,
+        fatherName: marksheet.fatherName,
+        motherName: marksheet.motherName,
+        courseName: marksheet.courseName,
+        instituteName: marksheet.instituteName,
+        rollNumber: marksheet.rollNumber,
+        dob: marksheet.dob,
+        coursePeriodFrom: marksheet.coursePeriodFrom,
+        coursePeriodTo: marksheet.coursePeriodTo,
+        courseDuration: marksheet.courseDuration,
+        dateOfIssue: marksheet.dateOfIssue,
+        subjects: marksheet.subjects,
+        totalTheoryMarks: marksheet.totalTheoryMarks,
+        totalPracticalMarks: marksheet.totalPracticalMarks,
+        totalCombinedMarks: marksheet.totalCombinedMarks,
+        maxTotalMarks: marksheet.maxTotalMarks,
+        percentage: marksheet.percentage,
+        overallGrade: marksheet.overallGrade,
+      });
+      setMsg('Marksheet downloaded successfully!');
+    } catch (err) {
+      console.error('Error generating PDF:', err);
+      setMsg('Failed to generate PDF: ' + err.message);
+    }
+  };
 
-    if (typeof MarksheetGenerator !== 'undefined') {
-      try {
-        MarksheetGenerator.download({
-          enrollmentNo: marksheet.enrollmentNo,
-          studentName: marksheet.studentName,
-          fatherName: marksheet.fatherName,
-          motherName: marksheet.motherName,
-          courseName: marksheet.courseName,
-          instituteName: marksheet.instituteName,
-          rollNumber: marksheet.rollNumber,
-          dob: marksheet.dob,
-          coursePeriodFrom: marksheet.coursePeriodFrom,
-          coursePeriodTo: marksheet.coursePeriodTo,
-          courseDuration: marksheet.courseDuration,
-          dateOfIssue: marksheet.dateOfIssue,
-          subjects: marksheet.subjects,
-          totalTheoryMarks: marksheet.totalTheoryMarks,
-          totalPracticalMarks: marksheet.totalPracticalMarks,
-          totalCombinedMarks: marksheet.totalCombinedMarks,
-          maxTotalMarks: marksheet.maxTotalMarks,
-          percentage: marksheet.percentage,
-          overallGrade: marksheet.overallGrade,
-        });
-      } catch (err) {
-        console.error('Error generating PDF with template:', err);
-        // Fallback to HTML-based generation
-        generateMarksheetPDF(marksheet);
-      }
-    } else {
-      console.warn('MarksheetGenerator not available, using fallback');
-      // Fallback to HTML-based generation
-      generateMarksheetPDF(marksheet);
+  const handleView = async (marksheet) => {
+    if (!marksheet) return;
+    
+    const generator = await initGenerator();
+    
+    if (!generator) {
+      setMsg('Failed to load marksheet generator.');
+      return;
+    }
+    
+    try {
+      const dataURL = await generator.getDataURL({
+        enrollmentNo: marksheet.enrollmentNo,
+        studentName: marksheet.studentName,
+        fatherName: marksheet.fatherName,
+        motherName: marksheet.motherName,
+        courseName: marksheet.courseName,
+        instituteName: marksheet.instituteName,
+        rollNumber: marksheet.rollNumber,
+        dob: marksheet.dob,
+        coursePeriodFrom: marksheet.coursePeriodFrom,
+        coursePeriodTo: marksheet.coursePeriodTo,
+        courseDuration: marksheet.courseDuration,
+        dateOfIssue: marksheet.dateOfIssue,
+        subjects: marksheet.subjects,
+        totalTheoryMarks: marksheet.totalTheoryMarks,
+        totalPracticalMarks: marksheet.totalPracticalMarks,
+        totalCombinedMarks: marksheet.totalCombinedMarks,
+        maxTotalMarks: marksheet.maxTotalMarks,
+        percentage: marksheet.percentage,
+        overallGrade: marksheet.overallGrade,
+      });
+
+      setViewImage(dataURL);
+      setShowViewModal(true);
+    } catch (err) {
+      console.error('Error generating marksheet preview:', err);
+      setMsg('Failed to generate preview: ' + err.message);
     }
   };
 
@@ -397,49 +166,6 @@ export default function MarksheetList() {
     } catch (err) {
       console.error('delete marksheet error:', err);
       setMsg(err.userMessage || 'Failed to delete marksheet');
-    }
-  };
-
-  const handleDownload = (marksheet) => {
-    handleTemplateDownload(marksheet);
-  };
-
-  const handleView = async (marksheet) => {
-    if (typeof MarksheetGenerator !== 'undefined') {
-      try {
-        // Generate preview image
-        const dataURL = await MarksheetGenerator.getDataURL({
-          enrollmentNo: marksheet.enrollmentNo,
-          studentName: marksheet.studentName,
-          fatherName: marksheet.fatherName,
-          motherName: marksheet.motherName,
-          courseName: marksheet.courseName,
-          instituteName: marksheet.instituteName,
-          rollNumber: marksheet.rollNumber,
-          dob: marksheet.dob,
-          coursePeriodFrom: marksheet.coursePeriodFrom,
-          coursePeriodTo: marksheet.coursePeriodTo,
-          courseDuration: marksheet.courseDuration,
-          dateOfIssue: marksheet.dateOfIssue,
-          subjects: marksheet.subjects,
-          totalTheoryMarks: marksheet.totalTheoryMarks,
-          totalPracticalMarks: marksheet.totalPracticalMarks,
-          totalCombinedMarks: marksheet.totalCombinedMarks,
-          maxTotalMarks: marksheet.maxTotalMarks,
-          percentage: marksheet.percentage,
-          overallGrade: marksheet.overallGrade,
-        });
-
-        setViewImage(dataURL);
-        setShowViewModal(true);
-      } catch (err) {
-        console.error('Error generating marksheet preview:', err);
-        // Fallback to HTML view
-        generateMarksheetPDF(marksheet);
-      }
-    } else {
-      // Fallback to HTML view
-      generateMarksheetPDF(marksheet);
     }
   };
 
