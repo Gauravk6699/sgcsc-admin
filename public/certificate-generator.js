@@ -103,14 +103,6 @@ var CertificateGenerator = (() => {
       _ctx.fillText('QR', x + size/2, y + size/2 + 5);
       _ctx.restore();
     }
-      console.warn('QR failed:', e.message);
-      _ctx.save();
-      _ctx.strokeStyle = '#000'; _ctx.lineWidth = 2;
-      _ctx.strokeRect(x, y, size, size);
-      _ctx.fillStyle = '#000'; _ctx.font = '16px serif'; _ctx.textAlign = 'center';
-      _ctx.fillText('QR', x + size/2, y + size/2 + 5);
-      _ctx.restore();
-    }
   }
 
   function _drawField(field, text) {
