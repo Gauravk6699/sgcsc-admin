@@ -18,17 +18,17 @@
     templatePath: 'id-card-template.jpeg',
     fields: {
       studentName:       { x: 49, y: 49, font: '80px serif', color: '#000000', align: 'center' },
-      sessionFrom:       { x: 48, y: 28, font: '60px serif', color: '#000000', align: 'left' },
-      sessionTo:         { x: 60, y: 28, font: '60px serif', color: '#000000', align: 'left' },
+      sessionFrom:       { x: 49, y: 28, font: '60px serif', color: '#000000', align: 'left' },
+      sessionTo:         { x: 59, y: 28, font: '60px serif', color: '#000000', align: 'left' },
       photo:            { x: 35, y: 29.3, width: 30, height: 17 },
-      fatherName:        { x: 51, y: 55.5, font: '80px serif', color: '#000000', align: 'left' },
+      fatherName:        { x: 51, y: 55.8, font: '80px serif', color: '#000000', align: 'left' },
       motherName:        { x: 51, y: 59.5, font: '80px serif', color: '#000000', align: 'left' },
       enrollmentNo:      { x: 51, y: 63, font: '80px serif', color: '#000000', align: 'left' },
-      dateOfBirth:       { x: 51, y: 67, font: '80px serif', color: '#000000', align: 'left' },
+      dateOfBirth:       { x: 51, y: 66.7, font: '80px serif', color: '#000000', align: 'left' },
       contactNo:         { x: 51, y: 71, font: '80px serif', color: '#000000', align: 'left' },
-      address:           { x: 51, y: 74.5, font: '60px serif', color: '#000000', align: 'left', maxWidth: 35, lineHeight: 2.0 },
+      address:           { x: 51, y: 74, font: '60px serif', color: '#000000', align: 'left', maxWidth: 35, lineHeight: 2.0 },
       mobileNo:          { x: 51, y: 82.5, font: '80px serif', color: '#000000', align: 'left' },
-      centerMobileNo:    { x: 51, y: 86.5, font: '80px serif', color: '#000000', align: 'left' },
+      centerMobileNo:    { x: 51, y: 85.8, font: '80px serif', color: '#000000', align: 'left' },
     }
   };
 
@@ -100,7 +100,6 @@
     _ctx.restore();
   }
 
-  // Helper to resolve ID card data from roll number or object
   function _resolveIDCardData(idCardOrRoll) {
     if (typeof idCardOrRoll === 'string') {
       if (typeof window !== 'undefined' && window.StudentDB) {
@@ -141,15 +140,15 @@
     });
   }
 
-  // Core render function
-  // idCard = { studentName, sessionFrom, sessionTo, fatherName, motherName, enrollmentNo, dateOfBirth, contactNo, address, mobileNo, centerMobileNo, photo }
   async function _render(idCard) {
     const data = _resolveIDCardData(idCard);
     if (!_templateImg) throw new Error('Template not loaded. Call IDCardGenerator.loadTemplate() first.');
     if (!_initCanvas()) throw new Error('Canvas not found. Make sure <canvas id="idCardCanvas"> exists.');
 
-    _canvas.width = _templateImg.naturalWidth;
+    _canvas.width  = _templateImg.naturalWidth;
     _canvas.height = _templateImg.naturalHeight;
+    _ctx.imageSmoothingEnabled = true;
+    _ctx.imageSmoothingQuality = 'high';
     _ctx.drawImage(_templateImg, 0, 0);
 
     if (data.photo) {
@@ -176,26 +175,38 @@
       } catch (e) { console.warn('Could not load student photo:', e); }
     }
 
-    _drawField(CONFIG.fields.studentName, data.studentName);
-    _drawField(CONFIG.fields.sessionFrom, data.sessionFrom);
-    _drawField(CONFIG.fields.sessionTo, data.sessionTo);
-    _drawField(CONFIG.fields.fatherName, data.fatherName);
-    _drawField(CONFIG.fields.motherName, data.motherName);
-    _drawField(CONFIG.fields.enrollmentNo, data.enrollmentNo);
-    _drawField(CONFIG.fields.dateOfBirth, _fmtDate(data.dateOfBirth));
-    _drawField(CONFIG.fields.contactNo, data.contactNo);
-    _drawWrappedText(CONFIG.fields.address, data.address);
-    _drawField(CONFIG.fields.mobileNo, data.mobileNo);
+    _drawField(CONFIG.fields.studentName,    data.studentName);
+    _drawField(CONFIG.fields.sessionFrom,    data.sessionFrom);
+    _drawField(CONFIG.fields.sessionTo,      data.sessionTo);
+    _drawField(CONFIG.fields.fatherName,     data.fatherName);
+    _drawField(CONFIG.fields.motherName,     data.motherName);
+    _drawField(CONFIG.fields.enrollmentNo,   data.enrollmentNo);
+    _drawField(CONFIG.fields.dateOfBirth,    _fmtDate(data.dateOfBirth));
+    _drawField(CONFIG.fields.contactNo,      data.contactNo);
+    _drawWrappedText(CONFIG.fields.address,  data.address);
+    _drawField(CONFIG.fields.mobileNo,       data.mobileNo);
     _drawField(CONFIG.fields.centerMobileNo, data.centerMobileNo);
   }
 
+  // ── PDF generation — A4 page size so Chrome opens at normal zoom ──────────
+  // Using a custom pixel-sized page causes Chrome to open at ~16% zoom.
+  // Forcing A4 makes Chrome open at a sensible default zoom level.
   function _canvasToPDF() {
     const { jsPDF } = window.jspdf;
+    const W = _canvas.width, H = _canvas.height;
+    const isLandscape = W > H;
+    const pageW = isLandscape ? 297 : 210;  // A4 in mm
+    const pageH = isLandscape ? 210 : 297;
+
     const pdf = new jsPDF({
-      orientation: _canvas.width > _canvas.height ? 'landscape' : 'portrait',
-      unit: 'px', format: [_canvas.width, _canvas.height]
+      orientation: isLandscape ? 'landscape' : 'portrait',
+      unit: 'mm',
+      format: 'a4'
     });
-    pdf.addImage(_canvas.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, _canvas.width, _canvas.height);
+
+    // Lossless PNG embed — avoids double-JPEG-compression artefacts
+    const imgData = _canvas.toDataURL('image/png');
+    pdf.addImage(imgData, 'PNG', 0, 0, pageW, pageH);
     return pdf;
   }
 
@@ -211,7 +222,7 @@
       return new Promise((resolve, reject) => {
         const img = new Image();
         img.crossOrigin = 'anonymous';
-        img.onload = () => { _templateImg = img; console.log('Template loaded:', img.width, 'x', img.height); resolve(img); };
+        img.onload  = () => { _templateImg = img; console.log('Template loaded:', img.width, 'x', img.height); resolve(img); };
         img.onerror = (e) => { console.error('Load failed:', e); reject(new Error('Failed to load: ' + (path || CONFIG.templatePath))); };
         img.src = path || CONFIG.templatePath;
       });
@@ -220,7 +231,7 @@
     async download(idCardOrRoll) {
       try {
         await _render(idCardOrRoll);
-        const pdf = _canvasToPDF();
+        const pdf  = _canvasToPDF();
         const data = _resolveIDCardData(idCardOrRoll);
         pdf.save(`id-card_${_safeName(data.enrollmentNo || data.studentName)}.pdf`);
       } catch (err) {
@@ -230,11 +241,9 @@
     },
 
     async preview(idCardOrRoll) {
-      return new Promise(async (resolve, reject) => {
-        try {
-          await _render(idCardOrRoll);
-          _canvas.toBlob(blob => resolve(blob), 'image/jpeg', 0.95);
-        } catch (err) { reject(err); }
+      await _render(idCardOrRoll);
+      return new Promise((resolve, reject) => {
+        _canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('toBlob returned null')), 'image/png');
       });
     },
 
@@ -243,7 +252,7 @@
       for (let i = 0; i < idCards.length; i++) {
         try {
           await _render(idCards[i]);
-          const pdf = _canvasToPDF();
+          const pdf  = _canvasToPDF();
           const data = _resolveIDCardData(idCards[i]);
           pdf.save(`id-card_${_safeName(data.enrollmentNo || data.studentName || i)}.pdf`);
           if (i < idCards.length - 1) await new Promise(r => setTimeout(r, delayMs));
@@ -252,7 +261,7 @@
     },
 
     updateConfig(newConfig) {
-      if (newConfig && newConfig.fields) Object.assign(CONFIG.fields, newConfig.fields);
+      if (newConfig && newConfig.fields)       Object.assign(CONFIG.fields, newConfig.fields);
       if (newConfig && newConfig.templatePath) CONFIG.templatePath = newConfig.templatePath;
     },
 

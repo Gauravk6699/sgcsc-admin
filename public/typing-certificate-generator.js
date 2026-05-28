@@ -51,7 +51,15 @@ var TypingCertificateGenerator = (() => {
   function _initCanvas() {
     if (!_canvas) {
       _canvas = document.getElementById('typingCertCanvas');
-      if (_canvas) {
+      if (!_canvas) {
+        _canvas = document.createElement('canvas');
+        _canvas.id = 'typingCertCanvas';
+        _canvas.style.display = 'none';
+        _canvas.width = 800;
+        _canvas.height = 600;
+        document.body.appendChild(_canvas);
+      }
+      if (_canvas && !_ctx) {
         _ctx = _canvas.getContext('2d');
       }
     }
@@ -70,7 +78,7 @@ var TypingCertificateGenerator = (() => {
 
   function _pct(val, total) { return (val / 100) * total; }
 
-  // Helper to load an image from URL
+  // Helper to load an image from URL (with cache busting)
   function _loadImage(src) {
     return new Promise((resolve, reject) => {
       if (!src) {
@@ -81,7 +89,9 @@ var TypingCertificateGenerator = (() => {
       img.crossOrigin = 'anonymous';
       img.onload = () => resolve(img);
       img.onerror = () => reject(new Error('Failed to load image: ' + src));
-      img.src = src;
+      // Add cache-busting to force reload when template changes
+      const separator = src.includes('?') ? '&' : '?';
+      img.src = src + separator + '_cb=' + Date.now();
     });
   }
 
@@ -139,7 +149,13 @@ var TypingCertificateGenerator = (() => {
   // Load template image (REQUIRED - JPG template must exist)
   // ─────────────────────────────────────────────
   async function loadTemplate(path = CONFIG.templatePath, customConfig = null) {
-    if (!path) throw new Error('Template path required');
+    // Override templatePath if provided in customConfig
+    if (customConfig && customConfig.templatePath) {
+      CONFIG.templatePath = customConfig.templatePath;
+    }
+    // Use the path argument, or fall back to the (possibly updated) CONFIG value
+    const templatePath = path || CONFIG.templatePath;
+    if (!templatePath) throw new Error('Template path required');
 
     try {
       // Allow overriding field positions via customConfig
@@ -147,9 +163,9 @@ var TypingCertificateGenerator = (() => {
         CONFIG.fields = { ...CONFIG.fields, ...customConfig.fields };
       }
 
-      _templateImg = await _loadImage(path);
+      _templateImg = await _loadImage(templatePath);
       if (!_templateImg) {
-        throw new Error(`Template image not found at: ${path}. Please ensure the JPG template exists in the public folder.`);
+        throw new Error(`Template image not found at: ${templatePath}. Please ensure the JPG template exists in the public folder.`);
       }
 
       if (!_initCanvas()) throw new Error('Canvas not available');
@@ -252,8 +268,17 @@ var TypingCertificateGenerator = (() => {
       const response = await fetch(`${apiBaseUrl}/certificate-template`);
       const data = await response.json();
       if (data.success && data.data && data.data.typingCertificate) {
-        CONFIG.fields = { ...CONFIG.fields, ...data.data.typingCertificate };
-        console.log('Template config loaded from API:', CONFIG.fields);
+        const config = data.data.typingCertificate;
+        // Apply field positions
+        if (config.fields) {
+          CONFIG.fields = { ...CONFIG.fields, ...config.fields };
+        }
+        // Apply template path from API if present
+        if (config.templatePath) {
+          CONFIG.templatePath = config.templatePath;
+          console.log('Template path loaded from API:', CONFIG.templatePath);
+        }
+        console.log('Template config loaded from API:', CONFIG);
         return true;
       }
     } catch (err) {

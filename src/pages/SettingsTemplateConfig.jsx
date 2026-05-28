@@ -43,7 +43,6 @@ const FIELD_LABELS = {
   issueDate: "Issue Date",
   examRollNo: "Exam Roll No",
   examDate: "Exam Date",
-  centerName: "Center Name",
   dob: "Date of Birth",
   courseDuration: "Course Duration",
   coursePeriodFrom: "Course Period From",
@@ -187,10 +186,10 @@ export default function SettingsTemplateConfig() {
     setPreviewLoading(true);
     try {
       const templateMap = {
-        typingCertificate: { generator: 'TypingCertificateGenerator', canvas: 'typingCertCanvas', template: '/typing-certificate-template.jpeg' },
-        franchiseCertificate: { generator: 'FranchiseCertificateGenerator', canvas: 'franchiseCertCanvas', template: '/franchise-certificate-template.jpeg' },
-        studentCertificate: { generator: 'CertificateGenerator', canvas: 'certCanvas', template: '/student-certificate-template.jpeg' },
-        marksheet: { generator: 'MarksheetGenerator', canvas: 'marksheetCanvas', template: '/marksheet-template.jpeg' }
+        typingCertificate: { generator: 'TypingCertificateGenerator', canvas: 'typingCertCanvas', template: (config.typingCertificate?.templatePath) || '/typing-certificate-template.jpeg' },
+        franchiseCertificate: { generator: 'FranchiseCertificateGenerator', canvas: 'franchiseCertCanvas', template: (config.franchiseCertificate?.templatePath) || '/franchise-certificate-template.jpeg' },
+        studentCertificate: { generator: 'CertificateGenerator', canvas: 'certCanvas', template: (config.studentCertificate?.templatePath) || '/student-certificate-template.jpeg' },
+        marksheet: { generator: 'MarksheetGenerator', canvas: 'marksheetCanvas', template: (config.marksheet?.templatePath) || '/marksheet-template.jpeg' }
       };
       const template = templateMap[activeTemplate];
       if (!template) return;

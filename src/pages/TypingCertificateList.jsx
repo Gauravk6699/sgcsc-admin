@@ -17,14 +17,26 @@ const initTypingCertificateGenerator = async () => {
     await new Promise(resolve => setTimeout(resolve, 500));
   }
 
+  // Helper to load template and fetch config
+  const loadTemplateAndConfig = async (generator) => {
+    typingCertificateGenerator = generator;
+    // First, fetch config from API which may include templatePath
+    try {
+      await generator.fetchConfigFromAPI();
+    } catch (apiErr) {
+      console.warn('API config fetch failed, using defaults:', apiErr);
+    }
+    // Load template — use API-configured path or fall back to default
+    const templatePath = generator.CONFIG?.templatePath || '/typing-certificate-template.jpeg';
+    await generator.loadTemplate(templatePath);
+    console.log('Typing certificate template loaded successfully from:', templatePath);
+    return generator;
+  };
+
   // Check if already available on window
   if (window.TypingCertificateGenerator) {
-    typingCertificateGenerator = window.TypingCertificateGenerator;
     try {
-      await typingCertificateGenerator.loadTemplate('/typing-certificate-template.jpeg');
-      typingCertificateGenerator.fetchConfigFromAPI();
-      console.log('Typing certificate template loaded successfully');
-      return typingCertificateGenerator;
+      return await loadTemplateAndConfig(window.TypingCertificateGenerator);
     } catch (err) {
       console.error('CRITICAL ERROR: Typing certificate template not found:', err.message);
       console.error('Please upload typing-certificate-template.jpeg to the public folder');
@@ -44,12 +56,9 @@ const initTypingCertificateGenerator = async () => {
         certScript.src = '/typing-certificate-generator.js';
         certScript.onload = async () => {
           if (window.TypingCertificateGenerator) {
-            typingCertificateGenerator = window.TypingCertificateGenerator;
             try {
-              await typingCertificateGenerator.loadTemplate('/typing-certificate-template.jpeg');
-              typingCertificateGenerator.fetchConfigFromAPI();
-              console.log('Typing certificate template loaded successfully');
-              resolve(typingCertificateGenerator);
+              const generator = await loadTemplateAndConfig(window.TypingCertificateGenerator);
+              resolve(generator);
             } catch (err) {
               console.error('CRITICAL ERROR: Typing certificate template not found:', err.message);
               reject(new Error(`Template required: ${err.message}`));
@@ -69,12 +78,9 @@ const initTypingCertificateGenerator = async () => {
       certScript.src = '/typing-certificate-generator.js';
       certScript.onload = async () => {
         if (window.TypingCertificateGenerator) {
-          typingCertificateGenerator = window.TypingCertificateGenerator;
           try {
-            await typingCertificateGenerator.loadTemplate('/typing-certificate-template.jpeg');
-            typingCertificateGenerator.fetchConfigFromAPI();
-            console.log('Typing certificate template loaded successfully');
-            resolve(typingCertificateGenerator);
+            const generator = await loadTemplateAndConfig(window.TypingCertificateGenerator);
+            resolve(generator);
           } catch (err) {
             console.error('CRITICAL ERROR: Typing certificate template not found:', err.message);
             reject(new Error(`Template required: ${err.message}`));

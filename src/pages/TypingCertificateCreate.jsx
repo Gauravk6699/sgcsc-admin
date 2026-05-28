@@ -2,6 +2,90 @@
 import { useEffect, useState } from 'react';
 import API from "../api/axiosInstance";
 
+// Typing Certificate Generator Global Reference
+let typingCertificateGenerator = null;
+
+// Initialize Typing Certificate Generator function
+const initTypingCertificateGenerator = async () => {
+  if (typingCertificateGenerator) return typingCertificateGenerator;
+
+  // Ensure canvas is available before loading template
+  const canvasElement = document.getElementById('typingCertCanvas');
+  if (!canvasElement) {
+    console.warn('Canvas element not found in DOM yet. Waiting...');
+    await new Promise(resolve => setTimeout(resolve, 500));
+  }
+
+  // Check if already available on window
+  if (window.TypingCertificateGenerator) {
+    typingCertificateGenerator = window.TypingCertificateGenerator;
+    try {
+      await typingCertificateGenerator.loadTemplate('/typing-certificate-template.jpeg');
+      typingCertificateGenerator.fetchConfigFromAPI();
+      console.log('Typing certificate template loaded successfully');
+      return typingCertificateGenerator;
+    } catch (err) {
+      console.error('CRITICAL ERROR: Typing certificate template not found:', err.message);
+      console.error('Please upload typing-certificate-template.jpeg to the public folder');
+      throw new Error(`Template required: ${err.message}`);
+    }
+  }
+
+  // Script not loaded yet, dynamically load it
+  return new Promise((resolve, reject) => {
+    // Load jspdf if not present
+    if (!window.jspdf) {
+      const jspdfScript = document.createElement('script');
+      jspdfScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+      jspdfScript.onload = () => {
+        const certScript = document.createElement('script');
+        certScript.src = '/typing-certificate-generator.js';
+        certScript.onload = async () => {
+          if (window.TypingCertificateGenerator) {
+            typingCertificateGenerator = window.TypingCertificateGenerator;
+            try {
+              await typingCertificateGenerator.loadTemplate('/typing-certificate-template.jpeg');
+              typingCertificateGenerator.fetchConfigFromAPI();
+              console.log('Typing certificate template loaded successfully');
+              resolve(typingCertificateGenerator);
+            } catch (err) {
+              console.error('CRITICAL ERROR: Typing certificate template not found:', err.message);
+              reject(new Error(`Template required: ${err.message}`));
+            }
+          } else {
+            reject(new Error('Typing certificate generator script failed to load'));
+          }
+        };
+        certScript.onerror = () => reject(new Error('Failed to load typing certificate generator script'));
+        document.body.appendChild(certScript);
+      };
+      jspdfScript.onerror = () => reject(new Error('Failed to load jspdf script'));
+      document.body.appendChild(jspdfScript);
+    } else if (!window.TypingCertificateGenerator) {
+      const certScript = document.createElement('script');
+      certScript.src = '/typing-certificate-generator.js';
+      certScript.onload = async () => {
+        if (window.TypingCertificateGenerator) {
+          typingCertificateGenerator = window.TypingCertificateGenerator;
+          try {
+            await typingCertificateGenerator.loadTemplate('/typing-certificate-template.jpeg');
+            typingCertificateGenerator.fetchConfigFromAPI();
+            console.log('Typing certificate template loaded successfully');
+            resolve(typingCertificateGenerator);
+          } catch (err) {
+            console.error('CRITICAL ERROR: Typing certificate template not found:', err.message);
+            reject(new Error(`Template required: ${err.message}`));
+          }
+        } else {
+          reject(new Error('Typing certificate generator script failed to load'));
+        }
+      };
+      certScript.onerror = () => reject(new Error('Failed to load typing certificate generator script'));
+      document.body.appendChild(certScript);
+    }
+  });
+};
+
 export default function TypingCertificateCreate() {
   const [students, setStudents] = useState([]);
 
@@ -46,9 +130,7 @@ export default function TypingCertificateCreate() {
       } catch (err) {
         console.error('load students error (typing certificate):', err);
         setMessageType('danger');
-        setMessage(
-          err.userMessage || 'Failed to load students. Check API.'
-        );
+        setMessage(err.userMessage || 'Failed to load students. Check API.');
       } finally {
         setLoadingLists(false);
       }
@@ -130,6 +212,48 @@ export default function TypingCertificateCreate() {
     setSaving(true);
 
     try {
+      try {
+        await initTypingCertificateGenerator();
+      } catch (genErr) {
+        setMessageType('danger');
+        setMessage(`Certificate generation failed: ${genErr.message}`);
+        setSaving(false);
+        return;
+      }
+
+      let certificateImage = null;
+
+      if (typingCertificateGenerator) {
+        try {
+          const certificateData = {
+            studentName: studentName.trim(),
+            fatherHusbandName: fatherHusbandName.trim(),
+            motherName: motherName.trim(),
+            enrollmentNumber: enrollmentNumber.trim(),
+            computerTyping: computerTyping.trim(),
+            certificateNo: certificateNo.trim(),
+            dateOfIssue,
+            sessionFrom: sessionFrom.trim(),
+            sessionTo: sessionTo.trim(),
+            grade: grade.trim(),
+            studyCentre: studyCentre.trim(),
+            wordsPerMinute: wordsPerMinute.trim(),
+          };
+          certificateImage = await typingCertificateGenerator.getDataURL(certificateData);
+        } catch (imgErr) {
+          console.error('Could not generate typing certificate image:', imgErr);
+          setMessageType('danger');
+          setMessage('Failed to generate certificate image. Please ensure the JPG template is properly configured.');
+          setSaving(false);
+          return;
+        }
+      } else {
+        setMessageType('danger');
+        setMessage('Certificate generator not available. Please refresh the page.');
+        setSaving(false);
+        return;
+      }
+
       const payload = {
         studentName: studentName.trim(),
         fatherHusbandName: fatherHusbandName.trim(),
@@ -144,6 +268,7 @@ export default function TypingCertificateCreate() {
         studyCentre: studyCentre.trim(),
         wordsPerMinute: wordsPerMinute.trim(),
         studentId: studentId || undefined,
+        certificateImage,
       };
 
       await API.unwrap(API.post('/typing-certificates', payload));
@@ -415,6 +540,9 @@ export default function TypingCertificateCreate() {
           </div>
         </div>
       </div>
+
+      {/* Hidden canvas for typing certificate rendering */}
+      <canvas id="typingCertCanvas" style={{ display: 'none' }}></canvas>
     </div>
   );
 }

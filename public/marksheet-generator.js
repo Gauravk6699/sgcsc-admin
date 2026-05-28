@@ -10,72 +10,84 @@
 // ║    MarksheetGenerator.downloadAll([ ...marksheets ])         ║
 // ╚══════════════════════════════════════════════════════════════╝
 
+// ─── QUALITY NOTES ─────────────────────────────────────────────────────────
+//  • The JPEG template is decoded ONCE to a canvas at full native resolution.
+//  • Text is drawn onto that canvas (losslessly, in memory).
+//  • The PDF is built by embedding the canvas pixels as a PNG (lossless).
+//    This avoids the double-JPEG-compression artefacts of the original code.
+//  • If you truly need a smaller file and can tolerate slight quality loss,
+//    change OUTPUT_FORMAT to 'image/jpeg' and set OUTPUT_QUALITY to 0.97.
+//    Never use JPEG quality below 0.92 for a document with fine text.
+//  • PDF DPI is inferred from the image meta (if present via EXIF) or falls
+//    back to ASSUMED_DPI (300 is the right default for print-grade marksheets).
+// ───────────────────────────────────────────────────────────────────────────
+
 var MarksheetGenerator = (() => {
+
+  // ── OUTPUT QUALITY CONTROLS ──────────────────────────────────────────────
+  const OUTPUT_FORMAT  = 'image/png';   // 'image/png' (lossless) recommended
+                                        // swap to 'image/jpeg' for smaller PDFs
+  const OUTPUT_QUALITY = 1.0;           // only used when format is JPEG (0–1)
+  const ASSUMED_DPI    = 300;           // fallback DPI for PDF sizing
+  // ─────────────────────────────────────────────────────────────────────────
 
   // ─────────────────────────────────────────────
   // CONFIGURATION — adjust positions to your JPG
   // All positions are percentage of image width/height (0–100)
   // ─────────────────────────────────────────────
   const CONFIG = {
-    templatePath: 'marksheet-template.jpeg',   // ← path to your template (can be overridden)
+    templatePath: 'marksheet-template.jpeg',  // ← path to your template
 
     fields: {
-      // { x, y } as % of image dimensions. font is px at full resolution.
-      enrollmentNo:       { x: 30,  y: 15, font: '100px serif',      color: '#000000', align: 'left' },
-      rollNumber:         { x: 73,  y: 28.5, font: '100px serif',    color: '#000000', align: 'left' },
-      studentName:        { x: 30,  y: 25.5, font: '100px serif',    color: '#000000', align: 'left' },
-      fatherName:         { x: 30,  y: 28.4, font: '100px serif',         color: '#000000', align: 'left' },
-      motherName:         { x: 30,  y: 31.3, font: '100px serif',         color: '#000000', align: 'left' },
-      dob:                { x: 73,  y: 31.2, font: '100px serif',         color: '#000000', align: 'left' },
-      courseName:         { x: 30,  y: 37, font: '100px serif',           color: '#000000', align: 'left' },
-      courseDuration:     { x: 73,  y: 25.5, font: '100px serif',        color: '#000000', align: 'left' },
-      coursePeriodFrom:   { x: 30,  y: 34, font: '100px serif',           color: '#000000', align: 'left' },
-      coursePeriodTo:     { x: 49,  y: 34, font: '100px serif',           color: '#000000', align: 'left' },
-      instituteName:      { x: 30,  y: 39.8, font: '100px serif',        color: '#000000', align: 'left' },
-      dateOfIssue:        { x: 19,  y: 92.5, font: '100px serif',        color: '#000000', align: 'left' },
+      enrollmentNo:     { x: 30,   y: 15,    font: '100px serif', color: '#000000', align: 'left'   },
+      rollNumber:       { x: 73,   y: 28.5,  font: '100px serif', color: '#000000', align: 'left'   },
+      studentName:      { x: 30,   y: 25.7,  font: '100px serif', color: '#000000', align: 'left'   },
+      fatherName:       { x: 30,   y: 28.4,  font: '100px serif', color: '#000000', align: 'left'   },
+      motherName:       { x: 30,   y: 31.3,  font: '100px serif', color: '#000000', align: 'left'   },
+      dob:              { x: 73,   y: 31.3,  font: '100px serif', color: '#000000', align: 'left'   },
+      courseName:       { x: 30,   y: 37,    font: '100px serif', color: '#000000', align: 'left'   },
+      courseDuration:   { x: 73,   y: 25.6,  font: '100px serif', color: '#000000', align: 'left'   },
+      coursePeriodFrom: { x: 30,   y: 34,    font: '100px serif', color: '#000000', align: 'left'   },
+      coursePeriodTo:   { x: 49,   y: 34,    font: '100px serif', color: '#000000', align: 'left'   },
+      instituteName:    { x: 30,   y: 39.8,  font: '100px serif', color: '#000000', align: 'left'   },
+      dateOfIssue:      { x: 19,   y: 92.5,  font: '100px serif', color: '#000000', align: 'left'   },
 
-       // Summary fields (percentage, grade, grand total)
-       totalPercentage:    { x: 80,  y: 77.7, font: '100px serif',        color: '#000000', align: 'left' },
-       overallGrade:       { x: 56,  y: 77.7, font: '100px serif',        color: '#000000', align: 'left' },
-       grandTotal:       { x: 29,  y: 77.7, font: '100px serif',        color: '#000000', align: 'left' },
+      totalPercentage:  { x: 80,   y: 77.7,  font: '100px serif', color: '#000000', align: 'left'   },
+      overallGrade:     { x: 56,   y: 77.7,  font: '100px serif', color: '#000000', align: 'left'   },
+      grandTotal:       { x: 29,   y: 77.7,  font: '100px serif', color: '#000000', align: 'left'   },
 
-        // Separate coordinates for sums (outside the table)
-        theorySum:          { x: 55,  y: 75, font: '100px serif',        color: '#000000', align: 'center' },
-        practicalSum:       { x: 70,  y: 75, font: '100px serif',        color: '#000000', align: 'center' },
-        objectiveSum:       { x: 82,  y: 75, font: '100px serif',        color: '#000000', align: 'center' },
+      theorySum:        { x: 55,   y: 75,    font: '100px serif', color: '#000000', align: 'center' },
+      practicalSum:     { x: 70,   y: 75,    font: '100px serif', color: '#000000', align: 'center' },
+      objectiveSum:     { x: 82,   y: 75,    font: '100px serif', color: '#000000', align: 'center' },
 
-       // Subject marks will be rendered dynamically
-      subjectsStartY:     53,  // Starting Y position for subjects table
-      subjectRowHeight:   1.5,   // Height of each subject row (increased 5x)
+      subjectsStartY:   53,
+      subjectRowHeight: 1.5,
     }
   };
 
   // ─────────────────────────────────────────────
   // Internal state
   // ─────────────────────────────────────────────
-  let _templateImg = null;
-  let _canvas = null;
-  let _ctx = null;
+  let _templateImg  = null;
+  let _templateDPI  = ASSUMED_DPI;  // resolved after loadTemplate()
+  let _canvas       = null;
+  let _ctx          = null;
 
   // ─────────────────────────────────────────────
-  // Initialize canvas on load
+  // Canvas init
   // ─────────────────────────────────────────────
   function _initCanvas() {
     if (!_canvas) {
       _canvas = document.getElementById('marksheetCanvas');
       if (!_canvas) {
-        // Create a hidden canvas dynamically if not found
         _canvas = document.createElement('canvas');
         _canvas.id = 'marksheetCanvas';
         _canvas.style.display = 'none';
         document.body.appendChild(_canvas);
       }
-      if (_canvas) {
-        _ctx = _canvas.getContext('2d');
-      }
+      _ctx = _canvas.getContext('2d');
     }
-    console.log('Canvas initialized:', { canvas: !!_canvas, ctx: !!_ctx });
-    return _canvas && _ctx;
+    return !!(_canvas && _ctx);
   }
 
   // ─────────────────────────────────────────────
@@ -104,150 +116,119 @@ var MarksheetGenerator = (() => {
       }
     }
     if (currentLine) lines.push(currentLine);
-    // Allow full wrapping without truncation
     return lines;
   }
 
   function _drawField(field, text) {
-    if (!text || !_ctx) return;
+    if (text == null || text === '' || !_ctx) return;
     const W = _canvas.width, H = _canvas.height;
     _ctx.save();
     _ctx.font      = field.font;
     _ctx.fillStyle = field.color;
     _ctx.textAlign = field.align || 'left';
-    _ctx.fillText(text, _pct(field.x, W), _pct(field.y, H));
+    _ctx.fillText(String(text), _pct(field.x, W), _pct(field.y, H));
     _ctx.restore();
   }
 
   // ─────────────────────────────────────────────
-  // Core render function
-  // marksheet = { studentName, fatherName, motherName, courseName, instituteName, rollNumber, dob, coursePeriodFrom, coursePeriodTo, courseDuration, subjects, dateOfIssue }
+  // Read DPI from JPEG JFIF / EXIF metadata
+  // Returns dots-per-inch (number) or null if not found.
   // ─────────────────────────────────────────────
-  async function _render(marksheet) {
-    if (!_initCanvas()) throw new Error('Canvas not found. Make sure <canvas id="marksheetCanvas"> exists.');
+  async function _readJpegDPI(url) {
+    try {
+      const res    = await fetch(url);
+      const buf    = await res.arrayBuffer();
+      const bytes  = new Uint8Array(buf);
 
-    // If template is not loaded, create a default white background
-    if (!_templateImg) {
-      console.warn('Template not loaded, using default white background');
-      _canvas.width = 2480; // A4 width at 300 DPI
-      _canvas.height = 3508; // A4 height at 300 DPI
-      _ctx.fillStyle = '#FFFFFF';
-      _ctx.fillRect(0, 0, _canvas.width, _canvas.height);
-    } else {
-      _canvas.width  = _templateImg.naturalWidth;
-      _canvas.height = _templateImg.naturalHeight;
-      // Draw template background
-      _ctx.drawImage(_templateImg, 0, 0);
+      // ── JFIF APP0 segment ────────────────────────────────────────────────
+      // SOI FF D8, then APP0 FF E0
+      if (bytes[0] === 0xFF && bytes[1] === 0xD8 &&
+          bytes[2] === 0xFF && bytes[3] === 0xE0) {
+        // units byte at offset 11: 1 = DPI, 2 = dots-per-cm
+        const units = bytes[11];
+        const xDens = (bytes[12] << 8) | bytes[13];
+        if (units === 1 && xDens > 0) return xDens;
+        if (units === 2 && xDens > 0) return Math.round(xDens * 2.54);
+      }
+
+      // ── EXIF APP1 segment ────────────────────────────────────────────────
+      let offset = 2;
+      while (offset < bytes.length - 4) {
+        if (bytes[offset] !== 0xFF) break;
+        const marker = bytes[offset + 1];
+        const segLen = (bytes[offset + 2] << 8) | bytes[offset + 3];
+        if (marker === 0xE1) {  // APP1 / EXIF
+          const exifHeader = String.fromCharCode(...bytes.slice(offset + 4, offset + 10));
+          if (exifHeader.startsWith('Exif')) {
+            const tiffStart  = offset + 10;
+            const littleEnd  = bytes[tiffStart] === 0x49;
+            const readU16    = (o) => littleEnd ? (bytes[tiffStart+o] | (bytes[tiffStart+o+1]<<8))
+                                                 : ((bytes[tiffStart+o]<<8) | bytes[tiffStart+o+1]);
+            const readU32    = (o) => littleEnd ? (bytes[tiffStart+o] | (bytes[tiffStart+o+1]<<8)
+                                                  | (bytes[tiffStart+o+2]<<16) | (bytes[tiffStart+o+3]<<24))
+                                                 : ((bytes[tiffStart+o]<<24) | (bytes[tiffStart+o+1]<<16)
+                                                   | (bytes[tiffStart+o+2]<<8) | bytes[tiffStart+o+3]);
+            const ifd0Offset = readU32(4);
+            const numEntries = readU16(ifd0Offset);
+            let xResVal = null, resUnit = 2;
+            for (let i = 0; i < numEntries; i++) {
+              const eOff = ifd0Offset + 2 + i * 12;
+              const tag  = readU16(eOff);
+              if (tag === 0x011A) {  // XResolution (rational)
+                const vOff = readU32(eOff + 8);
+                const num  = readU32(vOff);
+                const den  = readU32(vOff + 4);
+                xResVal = den ? num / den : null;
+              }
+              if (tag === 0x0128) {  // ResolutionUnit: 2=inch, 3=cm
+                resUnit = readU16(eOff + 8);
+              }
+            }
+            if (xResVal && xResVal > 0) {
+              return resUnit === 3 ? Math.round(xResVal * 2.54) : Math.round(xResVal);
+            }
+          }
+        }
+        offset += 2 + segLen;
+        if (marker === 0xDA) break;  // SOS — no more header segments
+      }
+    } catch (e) {
+      console.warn('Could not read JPEG DPI metadata:', e);
     }
-
-    // Draw student details
-    _drawField(CONFIG.fields.rollNumber, marksheet.rollNumber);
-    _drawField(CONFIG.fields.studentName, marksheet.studentName);
-    _drawField(CONFIG.fields.fatherName, marksheet.fatherName);
-    _drawField(CONFIG.fields.motherName, marksheet.motherName);
-    _drawField(CONFIG.fields.dob, _fmtDate(marksheet.dob));
-    _drawField(CONFIG.fields.courseName, marksheet.courseName);
-    _drawField(CONFIG.fields.courseDuration, marksheet.courseDuration);
-    _drawField(CONFIG.fields.coursePeriodFrom, _fmtDate(marksheet.coursePeriodFrom));
-    _drawField(CONFIG.fields.coursePeriodTo, _fmtDate(marksheet.coursePeriodTo));
-    _drawField(CONFIG.fields.instituteName, marksheet.instituteName);
-    _drawField(CONFIG.fields.dateOfIssue, _fmtDate(marksheet.dateOfIssue));
-
-     // Draw summary fields (percentage, grade, grand total)
-     const totalPercent = marksheet.percentage ? marksheet.percentage.toFixed(1) + '%' : '';
-     const grade = marksheet.overallGrade || '';
-     const totalMarks = marksheet.totalCombinedMarks + '/' + marksheet.maxTotalMarks;
-     _drawField(CONFIG.fields.totalPercentage, totalPercent);
-     _drawField(CONFIG.fields.overallGrade, grade);
-     _drawField(CONFIG.fields.grandTotal, totalMarks);
-
-      // Draw separate sums for theory, practical, objective (outside the table)
-      const totalTheory = marksheet.subjects ? marksheet.subjects.reduce((sum, s) => sum + (Number(s.theoryMarks || 0)), 0) : 0;
-      const totalPractical = marksheet.subjects ? marksheet.subjects.reduce((sum, s) => sum + (Number(s.practicalMarks || 0)), 0) : 0;
-      const totalObjective = marksheet.subjects ? marksheet.subjects.reduce((sum, s) => sum + (Number(s.objectiveMarks || 0)), 0) : 0;
-      const totalCombined = totalTheory + totalPractical; // sum of total = theory + practical
-      _drawField(CONFIG.fields.theorySum, String(totalTheory));
-      _drawField(CONFIG.fields.practicalSum, String(totalPractical));
-      _drawField(CONFIG.fields.objectiveSum, String(totalCombined));
-
-    // Draw subjects table
-    if (marksheet.subjects && Array.isArray(marksheet.subjects)) {
-      const W = _canvas.width, H = _canvas.height;
-      const startY = _pct(CONFIG.fields.subjectsStartY, H);
-      const rowHeight = _pct(CONFIG.fields.subjectRowHeight, H);
-      const lineSpacing = _pct(1.5, H); // Spacing between wrapped lines
-
-      let currentY = startY;
-
-      marksheet.subjects.forEach((subject, index) => {
-        // Draw subject number
-        _ctx.save();
-        _ctx.font = '100px serif';
-        _ctx.fillStyle = '#000000';
-        _ctx.textAlign = 'left';
-        _ctx.fillText(`${index + 1}.`, _pct(10, W), currentY);
-        _ctx.restore();
-
-        // Draw subject name (with wrapping)
-        _ctx.save();
-        _ctx.font = '100px serif';
-        _ctx.fillStyle = '#000000';
-        _ctx.textAlign = 'left';
-        const subjectText = subject.subjectName || '-';
-        const maxWidth = _pct(25, W); // Leave some margin before marks column
-        const lines = _wrapText(subjectText, maxWidth, _ctx);
-        lines.forEach((line, i) => {
-          _ctx.fillText(line, _pct(15, W), currentY + i * lineSpacing);
-        });
-        _ctx.restore();
-
-        // Draw marks aligned with the first line of the subject
-        // Draw theory marks
-        _ctx.save();
-        _ctx.font = '100px serif';
-        _ctx.fillStyle = '#000000';
-        _ctx.textAlign = 'center';
-        _ctx.fillText(`${subject.theoryMarks || 0}`, _pct(55, W), currentY);
-        _ctx.restore();
-
-        // Draw practical marks
-        _ctx.save();
-        _ctx.font = '100px serif';
-        _ctx.fillStyle = '#000000';
-        _ctx.textAlign = 'center';
-        _ctx.fillText(`${subject.practicalMarks || 0}`, _pct(70, W), currentY);
-        _ctx.restore();
-
-         // Draw combined marks
-         _ctx.save();
-         _ctx.font = '100px serif';
-         _ctx.fillStyle = '#000000';
-         _ctx.textAlign = 'center';
-         const theory = Number(subject.theoryMarks || 0);
-         const practical = Number(subject.practicalMarks || 0);
-         const objective = Number(subject.objectiveMarks || 0);
-         const combined = theory + practical + objective;
-         _ctx.fillText(`${combined}`, _pct(82, W), currentY);
-         _ctx.restore();
-
-        // Advance Y position based on lines used (minimum 1 row)
-        const usedLines = Math.max(1, lines.length);
-        currentY += usedLines * rowHeight;
-      });
-    }
-
-    return _canvas;
+    return null;
   }
 
+  // ─────────────────────────────────────────────
+  // Convert canvas → PDF (lossless PNG embed)
+  // Correct mm dimensions derived from pixel count ÷ DPI
+  // ─────────────────────────────────────────────
   function _canvasToPDF() {
     const { jsPDF } = window.jspdf;
     const W = _canvas.width, H = _canvas.height;
+
+    // Use the DPI we detected (or assumed) to get real-world page dimensions
+    const widthMM  = (W / _templateDPI) * 25.4;
+    const heightMM = (H / _templateDPI) * 25.4;
+
     const pdf = new jsPDF({
-      orientation: W > H ? 'landscape' : 'portrait',
-      unit: 'px',
-      format: [W, H]
+      orientation: W >= H ? 'landscape' : 'portrait',
+      unit: 'mm',
+      format: [widthMM, heightMM]
     });
-    pdf.addImage(_canvas.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, W, H);
+
+    // Open PDF zoomed to fit the full page — prevents the "zoomed in" default
+    pdf.setDisplayMode('fullpage', 'single');
+
+    // ── Lossless PNG embed ─────────────────────────────────────────────────
+    // toDataURL with 'image/png' produces a lossless bitmap; jsPDF accepts it.
+    // If you prefer JPEG to reduce file size, swap to 'image/jpeg' and a high
+    // quality value (≥ 0.95).  Never use a quality below 0.92 for text docs.
+    const imgData = (OUTPUT_FORMAT === 'image/jpeg')
+      ? _canvas.toDataURL('image/jpeg', OUTPUT_QUALITY)
+      : _canvas.toDataURL('image/png');
+
+    const imgType = (OUTPUT_FORMAT === 'image/jpeg') ? 'JPEG' : 'PNG';
+    pdf.addImage(imgData, imgType, 0, 0, widthMM, heightMM);
     return pdf;
   }
 
@@ -256,64 +237,167 @@ var MarksheetGenerator = (() => {
   }
 
   // ─────────────────────────────────────────────
+  // Core render — draws template + fields onto canvas
+  // ─────────────────────────────────────────────
+  async function _render(marksheet) {
+    if (!_initCanvas()) throw new Error('Canvas not found. Make sure <canvas id="marksheetCanvas"> exists.');
+
+    if (!_templateImg) {
+      console.warn('Template not loaded, using blank white background');
+      _canvas.width  = 2480;
+      _canvas.height = 3508;
+      _ctx.fillStyle = '#FFFFFF';
+      _ctx.fillRect(0, 0, _canvas.width, _canvas.height);
+    } else {
+      // Draw at native template resolution — no scaling, no quality loss
+      _canvas.width  = _templateImg.naturalWidth;
+      _canvas.height = _templateImg.naturalHeight;
+
+      // imageSmoothingEnabled has no effect here (we're at 1:1), but keep it
+      // explicit so that any future resizing path stays high-quality
+      _ctx.imageSmoothingEnabled = true;
+      _ctx.imageSmoothingQuality = 'high';
+
+      _ctx.drawImage(_templateImg, 0, 0);
+    }
+
+    // ── Student detail fields ──────────────────────────────────────────────
+    _drawField(CONFIG.fields.enrollmentNo,    marksheet.enrollmentNo);
+    _drawField(CONFIG.fields.rollNumber,      marksheet.rollNumber);
+    _drawField(CONFIG.fields.studentName,     marksheet.studentName);
+    _drawField(CONFIG.fields.fatherName,      marksheet.fatherName);
+    _drawField(CONFIG.fields.motherName,      marksheet.motherName);
+    _drawField(CONFIG.fields.dob,             _fmtDate(marksheet.dob));
+    _drawField(CONFIG.fields.courseName,      marksheet.courseName);
+    _drawField(CONFIG.fields.courseDuration,  marksheet.courseDuration);
+    _drawField(CONFIG.fields.coursePeriodFrom,_fmtDate(marksheet.coursePeriodFrom));
+    _drawField(CONFIG.fields.coursePeriodTo,  _fmtDate(marksheet.coursePeriodTo));
+    _drawField(CONFIG.fields.instituteName,   marksheet.instituteName);
+    _drawField(CONFIG.fields.dateOfIssue,     _fmtDate(marksheet.dateOfIssue));
+
+    // ── Summary fields ─────────────────────────────────────────────────────
+    const totalPercent = marksheet.percentage != null
+      ? marksheet.percentage.toFixed(1) + '%' : '';
+    const totalMarks   = marksheet.totalCombinedMarks + '/' + marksheet.maxTotalMarks;
+    _drawField(CONFIG.fields.totalPercentage, totalPercent);
+    _drawField(CONFIG.fields.overallGrade,    marksheet.overallGrade || '');
+    _drawField(CONFIG.fields.grandTotal,      totalMarks);
+
+    // ── Column sums ────────────────────────────────────────────────────────
+    const subs           = Array.isArray(marksheet.subjects) ? marksheet.subjects : [];
+    const totalTheory    = subs.reduce((s, r) => s + Number(r.theoryMarks    || 0), 0);
+    const totalPractical = subs.reduce((s, r) => s + Number(r.practicalMarks || 0), 0);
+    const totalObjective = subs.reduce((s, r) => s + Number(r.objectiveMarks || 0), 0);
+    const totalCombined  = totalTheory + totalPractical + totalObjective;
+    _drawField(CONFIG.fields.theorySum,    String(totalTheory));
+    _drawField(CONFIG.fields.practicalSum, String(totalPractical));
+    _drawField(CONFIG.fields.objectiveSum, String(totalCombined));
+
+    // ── Subjects table ─────────────────────────────────────────────────────
+    if (subs.length > 0) {
+      const W = _canvas.width, H = _canvas.height;
+      const startY      = _pct(CONFIG.fields.subjectsStartY,   H);
+      const rowHeight   = _pct(CONFIG.fields.subjectRowHeight,  H);
+      const lineSpacing = _pct(1.5, H);
+
+      let currentY = startY;
+
+      subs.forEach((subject) => {
+        const rawName     = subject.subjectName || '-';
+        const subjectText = rawName;
+
+        // Subject name (with word-wrap)
+        _ctx.save();
+        _ctx.font      = '100px serif';
+        _ctx.fillStyle = '#000000';
+        _ctx.textAlign = 'left';
+        const maxWidth = _pct(25, W);
+        const lines    = _wrapText(subjectText, maxWidth, _ctx);
+        lines.forEach((line, i) => {
+          _ctx.fillText(line, _pct(10, W), currentY + i * lineSpacing);
+        });
+        _ctx.restore();
+
+        // Theory
+        _ctx.save();
+        _ctx.font = '100px serif'; _ctx.fillStyle = '#000000'; _ctx.textAlign = 'center';
+        _ctx.fillText(String(subject.theoryMarks || 0), _pct(55, W), currentY);
+        _ctx.restore();
+
+        // Practical
+        _ctx.save();
+        _ctx.font = '100px serif'; _ctx.fillStyle = '#000000'; _ctx.textAlign = 'center';
+        _ctx.fillText(String(subject.practicalMarks || 0), _pct(70, W), currentY);
+        _ctx.restore();
+
+        // Combined (theory + practical + objective)
+        _ctx.save();
+        _ctx.font = '100px serif'; _ctx.fillStyle = '#000000'; _ctx.textAlign = 'center';
+        const combined = Number(subject.theoryMarks    || 0)
+                       + Number(subject.practicalMarks || 0)
+                       + Number(subject.objectiveMarks || 0);
+        _ctx.fillText(String(combined), _pct(82, W), currentY);
+        _ctx.restore();
+
+        const usedLines = Math.max(1, lines.length);
+        currentY += usedLines * rowHeight;
+      });
+    }
+
+    return _canvas;
+  }
+
+  // ─────────────────────────────────────────────
   // PUBLIC API
   // ─────────────────────────────────────────────
   return {
 
     /**
-     * Load template image.
-     * @param {string} pathOrDataURL  — URL or base64 data URL of your JPG
-     * @returns {Promise}
+     * Load the JPEG template.
+     * Also attempts to read DPI metadata so the PDF comes out at the correct
+     * physical size.  Falls back to ASSUMED_DPI (300) if metadata is absent.
      *
-     * Example:
-     *   await MarksheetGenerator.loadTemplate('/assets/marksheet_template.jpg');
+     * @param {string} pathOrDataURL — URL or base64 data URL of your template JPEG
+     * @returns {Promise<HTMLImageElement|null>}
      */
-    loadTemplate(pathOrDataURL) {
-      return new Promise((resolve, reject) => {
-        _initCanvas();
+    async loadTemplate(pathOrDataURL) {
+      _initCanvas();
+      const src = pathOrDataURL || CONFIG.templatePath;
+
+      // Try to read DPI from JPEG metadata before decoding the image.
+      // Skip for data-URLs (they don't have JFIF/EXIF in a fetchable way).
+      if (!src.startsWith('data:')) {
+        const dpi = await _readJpegDPI(src);
+        if (dpi && dpi > 0) {
+          _templateDPI = dpi;
+          console.log(`Template DPI detected: ${dpi}`);
+        } else {
+          _templateDPI = ASSUMED_DPI;
+          console.warn(`Could not read DPI from template; assuming ${ASSUMED_DPI} DPI.`);
+        }
+      }
+
+      return new Promise((resolve) => {
         const img = new Image();
         img.crossOrigin = 'anonymous';
-        img.onload  = () => {
-          console.log('Template loaded successfully:', img.naturalWidth, 'x', img.naturalHeight);
+        img.onload = () => {
+          console.log(`Template loaded: ${img.naturalWidth} × ${img.naturalHeight} px @ ${_templateDPI} DPI`);
           _templateImg = img;
           resolve(img);
         };
         img.onerror = (e) => {
-          console.error('Template image failed to load from:', pathOrDataURL || CONFIG.templatePath, 'Error:', e);
-          // Don't reject, allow generation with default background
+          console.error('Template failed to load from:', src, e);
           _templateImg = null;
           resolve(null);
         };
-        const src = pathOrDataURL || CONFIG.templatePath;
-        console.log('Attempting to load marksheet template from:', src);
         img.src = src;
       });
     },
 
     /**
-     * Download a single student's marksheet as a PDF.
-      * @param {Object} marksheet — { studentName, fatherName, motherName, courseName, instituteName, rollNumber, dob, coursePeriodFrom, coursePeriodTo, courseDuration, subjects, dateOfIssue }
+     * Download a single student's marksheet as a lossless PDF.
      *
-     * Example:
-      *   MarksheetGenerator.download({
-      *     studentName: 'Ramesh Kumar',
-     *     fatherName: 'Suresh Kumar',
-     *     motherName: 'Kamla Devi',
-     *     courseName: 'Diploma in Computer Application',
-     *     instituteName: 'SGCSC Institute',
-     *     rollNumber: 'R-2024-001',
-     *     dob: '2000-01-15',
-     *     coursePeriodFrom: '2023-04-01',
-     *     coursePeriodTo: '2024-03-31',
-     *     courseDuration: '1 Year',
-     *     subjects: [...],
-     *     totalTheoryMarks: 450,
-     *     totalPracticalMarks: 100,
-     *     totalCombinedMarks: 550,
-     *     maxTotalMarks: 600,
-     *     percentage: 91.67,
-     *     overallGrade: 'A+'
-     *   });
+     * @param {Object} marksheet
      */
     async download(marksheet) {
       try {
@@ -327,98 +411,73 @@ var MarksheetGenerator = (() => {
     },
 
     /**
-     * Preview a single student's marksheet, returns canvas blob.
-     * @param {Object} marksheet — same as download()
+     * Preview — returns a PNG Blob (lossless).
+     *
+     * @param {Object} marksheet
      * @returns {Promise<Blob>}
      */
     async preview(marksheet) {
-      return new Promise(async (resolve, reject) => {
-        try {
-          await _render(marksheet);
-          _canvas.toBlob(blob => resolve(blob), 'image/jpeg', 0.95);
-        } catch (err) {
-          reject(err);
-        }
+      await _render(marksheet);
+      return new Promise((resolve, reject) => {
+        _canvas.toBlob(
+          blob => blob ? resolve(blob) : reject(new Error('toBlob returned null')),
+          'image/png'   // lossless preview
+        );
       });
     },
 
     /**
-     * Get data URL for preview display.
-     * @param {Object} marksheet — same as download()
-     * @returns {Promise<string>} Data URL
+     * Get a data URL for inline display (e.g. <img src="...">).
+     * Returns PNG (lossless) by default.
+     *
+     * @param {Object} marksheet
+     * @returns {Promise<string>}
      */
     async getDataURL(marksheet) {
-      try {
-        await _render(marksheet);
-        return _canvas.toDataURL('image/jpeg', 0.95);
-      } catch (err) {
-        console.error('MarksheetGenerator.getDataURL error:', err);
-        throw err;
-      }
+      await _render(marksheet);
+      return _canvas.toDataURL('image/png');  // lossless
     },
 
     /**
-     * Download multiple marksheets as PDFs (one by one).
-     * @param {Array} marksheets — array of marksheet objects
-     * @param {number} delayMs — delay between downloads (default 500ms)
+     * Download multiple marksheets as individual PDFs.
+     *
+     * @param {Array}  marksheets
+     * @param {number} delayMs — pause between downloads (default 500 ms)
      */
     async downloadAll(marksheets, delayMs = 500) {
       if (!Array.isArray(marksheets) || marksheets.length === 0) {
         console.warn('No marksheets to download');
         return;
       }
-
       for (let i = 0; i < marksheets.length; i++) {
         try {
-          _render(marksheets[i]);
+          await _render(marksheets[i]);
           const pdf = _canvasToPDF();
           pdf.save(`marksheet_${_safeName(marksheets[i].rollNumber || marksheets[i].studentName || i)}.pdf`);
-          // Small delay to prevent browser blocking multiple downloads
-          if (i < marksheets.length - 1) {
-            await new Promise(r => setTimeout(r, delayMs));
-          }
+          if (i < marksheets.length - 1) await new Promise(r => setTimeout(r, delayMs));
         } catch (err) {
           console.error(`Error generating marksheet ${i}:`, err);
         }
       }
     },
 
-    /**
-     * Update field position configuration.
-     * @param {Object} newFields — partial fields object to override defaults
-     *
-     * Example:
-     *   MarksheetGenerator.updateConfig({
-     *     fields: {
-     *       studentName: { x: 30, y: 35, font: 'bold 24px serif', color: '#000000' }
-     *     }
-     *   });
-     */
+    /** Override field positions or template path at runtime. */
     updateConfig(newConfig) {
-      if (newConfig && newConfig.fields) {
-        Object.assign(CONFIG.fields, newConfig.fields);
-      }
-      if (newConfig && newConfig.templatePath) {
-        CONFIG.templatePath = newConfig.templatePath;
-      }
+      if (newConfig?.fields)       Object.assign(CONFIG.fields, newConfig.fields);
+      if (newConfig?.templatePath) CONFIG.templatePath = newConfig.templatePath;
     },
 
-    /**
-     * Get current configuration (useful for debugging).
-     */
+    /** Return a deep copy of the current config (useful for debugging). */
     getConfig() {
       return JSON.parse(JSON.stringify(CONFIG));
     },
 
-    /**
-     * Fetch configuration from API and apply to fields.
-     * @param {string} apiBaseUrl — base URL for API (default '/api/settings')
-     */
+    /** Fetch field positions from your back-end settings API. */
     async fetchConfigFromAPI(apiBaseUrl = '/api/settings') {
       try {
-        const response = await fetch(`${apiBaseUrl}/certificate-template`);
-        const data = await response.json();
-        if (data.success && data.data && data.data.marksheet) {
+        const res  = await fetch(`${apiBaseUrl}/certificate-template`);
+        const data = await res.json();
+        if (data.success && data.data?.marksheet) {
           CONFIG.fields = { ...CONFIG.fields, ...data.data.marksheet };
           console.log('Template config loaded from API:', CONFIG.fields);
           return true;
