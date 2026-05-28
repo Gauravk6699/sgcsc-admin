@@ -85,7 +85,12 @@ var CertificateGenerator = (() => {
       qrCtx.fillStyle = 'white';
       qrCtx.fillRect(0, 0, size, size);
       new QRious({ element: qrCanvas, value: verifyUrl, size: size, background: null, foreground: 'black' });
+      _ctx.save();
+      _ctx.fillStyle = 'white';
+      _ctx.fillRect(x, y, size, size);
+      _ctx.globalCompositeOperation = 'source-over';
       _ctx.drawImage(qrCanvas, x, y, size, size);
+      _ctx.restore();
       console.log('QR drawn at', x, y, size, 'for', verifyUrl);
     } catch (e) {
       console.warn('QR failed:', e.message);
