@@ -644,32 +644,50 @@ function CertificateViewModal({ show, onClose, certificate }) {
 
   const downloadAsPDF = async () => {
     try {
+      if (!certificate.certificateImage) {
+        alert('Certificate image not available.');
+        return;
+      }
+      
       const { jsPDF } = window.jspdf;
+      const PAGE_W_MM = 210;
+      const PAGE_H_MM = 297;
       
-      // Load the certificate image
       const img = new Image();
-      img.crossOrigin = 'anonymous';
-      await new Promise((resolve, reject) => {
-        img.onload = resolve;
-        img.onerror = reject;
-        img.src = certificate.certificateImage;
-      });
-      
-      // Create PDF with same dimensions as the image
-      const pdf = new jsPDF({
-        orientation: img.width > img.height ? 'landscape' : 'portrait',
-        unit: 'px',
-        format: [img.width, img.height]
-      });
-      
-      // Add the image to PDF
-      pdf.addImage(certificate.certificateImage, 'JPEG', 0, 0, img.width, img.height);
-      
-      // Download as PDF
-      pdf.save(`certificate_${certificate.certificateNumber}.pdf`);
+      img.onload = () => {
+        const tmpCanvas = document.createElement('canvas');
+        const MAX_PX = 2500;
+        let w = img.width, h = img.height;
+        if (w > MAX_PX || h > MAX_PX) {
+          const ratio = Math.min(MAX_PX / w, MAX_PX / h);
+          w = Math.round(w * ratio);
+          h = Math.round(h * ratio);
+        }
+        tmpCanvas.width = w;
+        tmpCanvas.height = h;
+        const ctx = tmpCanvas.getContext('2d');
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(img, 0, 0, w, h);
+        
+        const imgData = tmpCanvas.toDataURL('image/jpeg', 0.95);
+        
+        const pdf = new jsPDF({
+          orientation: 'portrait',
+          unit: 'mm',
+          format: 'a4',
+        });
+        
+        pdf.addImage(imgData, 'JPEG', 0, 0, PAGE_W_MM, PAGE_H_MM);
+        pdf.save(`certificate_${certificate.certificateNumber}.pdf`);
+      };
+      img.onerror = () => {
+        alert('Failed to load certificate image.');
+      };
+      img.src = certificate.certificateImage;
     } catch (err) {
       console.error('Error creating PDF:', err);
-      alert('Failed to create PDF');
+      alert('Failed to create PDF: ' + err.message);
     }
   };
 

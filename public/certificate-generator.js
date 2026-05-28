@@ -4,7 +4,7 @@
 
 var CertificateGenerator = (() => {
 
-  const VERIFY_BASE_URL = 'https://www.sgcsc.in/verify';
+  let VERIFY_BASE_URL = 'https://sgcsc-backend.onrender.com/verify';
 
   const CONFIG = {
     templatePath: 'student-certificate-template.jpeg',
@@ -81,7 +81,10 @@ var CertificateGenerator = (() => {
       const qrCanvas = document.createElement('canvas');
       qrCanvas.width  = size;
       qrCanvas.height = size;
-      new QRious({ element: qrCanvas, value: verifyUrl, size: size, background: 'white', foreground: 'black' });
+      const qrCtx = qrCanvas.getContext('2d');
+      qrCtx.fillStyle = 'white';
+      qrCtx.fillRect(0, 0, size, size);
+      new QRious({ element: qrCanvas, value: verifyUrl, size: size, background: null, foreground: 'black' });
       _ctx.drawImage(qrCanvas, x, y, size, size);
       console.log('QR drawn at', x, y, size, 'for', verifyUrl);
     } catch (e) {
@@ -251,6 +254,44 @@ var CertificateGenerator = (() => {
       }
     },
 
+    async getImageDataURL(studentOrRoll) {
+      try {
+        await _render(studentOrRoll);
+        const W = _canvas.width, H = _canvas.height;
+        
+        const off = document.createElement('canvas');
+        const MAX_DIM = 2000;
+        let offW = W, offH = H;
+        if (W > MAX_DIM || H > MAX_DIM) {
+          const ratio = Math.min(MAX_DIM / W, MAX_DIM / H);
+          offW = Math.round(W * ratio);
+          offH = Math.round(H * ratio);
+        }
+        off.width = offW;
+        off.height = offH;
+        const octx = off.getContext('2d');
+        octx.imageSmoothingEnabled = true;
+        octx.imageSmoothingQuality = 'high';
+        octx.drawImage(_canvas, 0, 0, offW, offH);
+        
+        return off.toDataURL('image/jpeg', 0.95);
+      } catch (err) {
+        console.error('getImageDataURL error:', err);
+        throw err;
+      }
+    },
+
+    async getPDFDataURL(studentOrRoll) {
+      try {
+        await _render(studentOrRoll);
+        const pdf = _canvasToPDF();
+        return pdf.output('datauristring');
+      } catch (err) {
+        console.error('getPDFDataURL error:', err);
+        throw err;
+      }
+    },
+
     async downloadAll(students, onProgress) {
       if (!Array.isArray(students) || !students.length) return;
       for (let i = 0; i < students.length; i++) {
@@ -258,6 +299,10 @@ var CertificateGenerator = (() => {
         if (onProgress) onProgress(i+1, students.length);
         await new Promise(r => setTimeout(r, 350));
       }
+    },
+
+    setVerifyBaseUrl(url) {
+      if (url) VERIFY_BASE_URL = url;
     },
 
     setField(name, overrides)      { if (!CONFIG.fields[name]) throw new Error('Unknown: '+name); Object.assign(CONFIG.fields[name], overrides); },
