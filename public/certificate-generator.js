@@ -4,7 +4,7 @@
 
 var CertificateGenerator = (() => {
 
-  let VERIFY_BASE_URL = 'https://sgcsc-backend-dzp4.onrender.com/verify';
+  let VERIFY_BASE_URL = 'https://sgcsc.in';
 
   const CONFIG = {
     templatePath: 'student-certificate-template.jpeg',
@@ -70,7 +70,7 @@ var CertificateGenerator = (() => {
     const qrField = CONFIG.fields.qrCode;
     if (!qrField) return;
 
-    const verifyUrl = `${VERIFY_BASE_URL}/view/${encodeURIComponent(certificateNumber)}`;
+    const verifyUrl = `${VERIFY_BASE_URL}/verify/${encodeURIComponent(certificateNumber)}`;
     const W = _canvas.width, H = _canvas.height;
     const size = Math.min(_pct(qrField.width, W), _pct(qrField.height, H));
     const x    = _pct(qrField.x, W) - size / 2;
