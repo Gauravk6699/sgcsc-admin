@@ -4,7 +4,7 @@
 
 var CertificateGenerator = (() => {
 
-  let VERIFY_BASE_URL = 'https://sgcsc-backend.onrender.com/verify';
+  let VERIFY_BASE_URL = 'https://sgcsc-backend-dzp4.onrender.com/verify';
 
   const CONFIG = {
     templatePath: 'student-certificate-template.jpeg',
