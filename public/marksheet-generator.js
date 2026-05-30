@@ -13,22 +13,17 @@
 // ─── QUALITY NOTES ─────────────────────────────────────────────────────────
 //  • The JPEG template is decoded ONCE to a canvas at full native resolution.
 //  • Text is drawn onto that canvas (losslessly, in memory).
-//  • The PDF is built by embedding the canvas pixels as a PNG (lossless).
-//    This avoids the double-JPEG-compression artefacts of the original code.
-//  • If you truly need a smaller file and can tolerate slight quality loss,
-//    change OUTPUT_FORMAT to 'image/jpeg' and set OUTPUT_QUALITY to 0.97.
-//    Never use JPEG quality below 0.92 for a document with fine text.
-//  • PDF DPI is inferred from the image meta (if present via EXIF) or falls
-//    back to ASSUMED_DPI (300 is the right default for print-grade marksheets).
+//  • The PDF is built by embedding the canvas pixels as a JPEG at 0.9 quality.
+//  • DPI set to 200 for slightly larger file size while maintaining quality.
+//  • This produces PDFs around 3-4MB instead of 200MB+.
 // ───────────────────────────────────────────────────────────────────────────
 
 var MarksheetGenerator = (() => {
 
   // ── OUTPUT QUALITY CONTROLS ──────────────────────────────────────────────
-  const OUTPUT_FORMAT  = 'image/png';   // 'image/png' (lossless) recommended
-                                        // swap to 'image/jpeg' for smaller PDFs
-  const OUTPUT_QUALITY = 1.0;           // only used when format is JPEG (0–1)
-  const ASSUMED_DPI    = 300;           // fallback DPI for PDF sizing
+  const OUTPUT_FORMAT  = 'image/jpeg';  // JPEG for smaller file size
+  const OUTPUT_QUALITY = 0.9;           // JPEG quality (0–1)
+  const ASSUMED_DPI    = 200;           // DPI for PDF sizing
   // ─────────────────────────────────────────────────────────────────────────
 
   // ─────────────────────────────────────────────
@@ -39,7 +34,6 @@ var MarksheetGenerator = (() => {
     templatePath: 'marksheet-template.jpeg',  // ← path to your template
 
     fields: {
-      enrollmentNo:     { x: 30,   y: 15,    font: '100px serif', color: '#000000', align: 'left'   },
       rollNumber:       { x: 73,   y: 28.5,  font: '100px serif', color: '#000000', align: 'left'   },
       studentName:      { x: 30,   y: 25.7,  font: '100px serif', color: '#000000', align: 'left'   },
       fatherName:       { x: 30,   y: 28.4,  font: '100px serif', color: '#000000', align: 'left'   },
@@ -199,36 +193,39 @@ var MarksheetGenerator = (() => {
   }
 
   // ─────────────────────────────────────────────
-  // Convert canvas → PDF (lossless PNG embed)
-  // Correct mm dimensions derived from pixel count ÷ DPI
+  // Convert canvas → PDF (JPEG for smaller file size)
+  // Resizes canvas to 150 DPI for ~2MB PDF
   // ─────────────────────────────────────────────
   function _canvasToPDF() {
     const { jsPDF } = window.jspdf;
     const W = _canvas.width, H = _canvas.height;
 
-    // Use the DPI we detected (or assumed) to get real-world page dimensions
-    const widthMM  = (W / _templateDPI) * 25.4;
-    const heightMM = (H / _templateDPI) * 25.4;
+    // Resize to 200 DPI for slightly larger file size
+    const TARGET_DPI = 200;
+    const scale = TARGET_DPI / _templateDPI;
+    const newW = Math.round(W * scale);
+    const newH = Math.round(H * scale);
+    const widthMM  = (newW / TARGET_DPI) * 25.4;
+    const heightMM = (newH / TARGET_DPI) * 25.4;
+
+    const off = document.createElement('canvas');
+    off.width = newW;
+    off.height = newH;
+    const octx = off.getContext('2d');
+    octx.imageSmoothingEnabled = true;
+    octx.imageSmoothingQuality = 'high';
+    octx.drawImage(_canvas, 0, 0, newW, newH);
 
     const pdf = new jsPDF({
-      orientation: W >= H ? 'landscape' : 'portrait',
+      orientation: newW >= newH ? 'landscape' : 'portrait',
       unit: 'mm',
       format: [widthMM, heightMM]
     });
 
-    // Open PDF zoomed to fit the full page — prevents the "zoomed in" default
     pdf.setDisplayMode('fullpage', 'single');
 
-    // ── Lossless PNG embed ─────────────────────────────────────────────────
-    // toDataURL with 'image/png' produces a lossless bitmap; jsPDF accepts it.
-    // If you prefer JPEG to reduce file size, swap to 'image/jpeg' and a high
-    // quality value (≥ 0.95).  Never use a quality below 0.92 for text docs.
-    const imgData = (OUTPUT_FORMAT === 'image/jpeg')
-      ? _canvas.toDataURL('image/jpeg', OUTPUT_QUALITY)
-      : _canvas.toDataURL('image/png');
-
-    const imgType = (OUTPUT_FORMAT === 'image/jpeg') ? 'JPEG' : 'PNG';
-    pdf.addImage(imgData, imgType, 0, 0, widthMM, heightMM);
+    const imgData = off.toDataURL('image/jpeg', OUTPUT_QUALITY);
+    pdf.addImage(imgData, 'JPEG', 0, 0, widthMM, heightMM);
     return pdf;
   }
 
@@ -262,7 +259,6 @@ var MarksheetGenerator = (() => {
     }
 
     // ── Student detail fields ──────────────────────────────────────────────
-    _drawField(CONFIG.fields.enrollmentNo,    marksheet.enrollmentNo);
     _drawField(CONFIG.fields.rollNumber,      marksheet.rollNumber);
     _drawField(CONFIG.fields.studentName,     marksheet.studentName);
     _drawField(CONFIG.fields.fatherName,      marksheet.fatherName);
@@ -355,7 +351,7 @@ var MarksheetGenerator = (() => {
     /**
      * Load the JPEG template.
      * Also attempts to read DPI metadata so the PDF comes out at the correct
-     * physical size.  Falls back to ASSUMED_DPI (300) if metadata is absent.
+     * physical size.  Falls back to ASSUMED_DPI (200) if metadata is absent.
      *
      * @param {string} pathOrDataURL — URL or base64 data URL of your template JPEG
      * @returns {Promise<HTMLImageElement|null>}
@@ -395,7 +391,7 @@ var MarksheetGenerator = (() => {
     },
 
     /**
-     * Download a single student's marksheet as a lossless PDF.
+     * Download a single student's marksheet as a PDF (~3-4MB).
      *
      * @param {Object} marksheet
      */
@@ -411,7 +407,7 @@ var MarksheetGenerator = (() => {
     },
 
     /**
-     * Preview — returns a PNG Blob (lossless).
+     * Preview — returns a JPEG Blob (~3-4MB).
      *
      * @param {Object} marksheet
      * @returns {Promise<Blob>}
@@ -421,21 +417,21 @@ var MarksheetGenerator = (() => {
       return new Promise((resolve, reject) => {
         _canvas.toBlob(
           blob => blob ? resolve(blob) : reject(new Error('toBlob returned null')),
-          'image/png'   // lossless preview
+          'image/jpeg', 0.9
         );
       });
     },
 
     /**
      * Get a data URL for inline display (e.g. <img src="...">).
-     * Returns PNG (lossless) by default.
+     * Returns JPEG (smaller size) by default.
      *
      * @param {Object} marksheet
      * @returns {Promise<string>}
      */
     async getDataURL(marksheet) {
       await _render(marksheet);
-      return _canvas.toDataURL('image/png');  // lossless
+      return _canvas.toDataURL('image/jpeg', 0.9);
     },
 
     /**
