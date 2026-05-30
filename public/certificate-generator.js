@@ -18,8 +18,8 @@ var CertificateGenerator = (() => {
       courseDuration:       { x: 54,   y: 61.5, font: '160px serif', color: '#000000', align: 'left'   },
       coursePeriodFrom:     { x: 41.5, y: 64.3, font: '160px serif', color: '#000000', align: 'left'   },
       coursePeriodTo:       { x: 61,   y: 64.3, font: '160px serif', color: '#000000', align: 'left'   },
-      certificateNumber:    { x: 23,   y: 93,   font: '160px serif', color: '#000000', align: 'left'   },
-      dateOfIssue:          { x: 55,   y: 93,   font: '160px serif', color: '#000000', align: 'left'   },
+      certificateNumber:    { x: 23,   y: 93,   font: '100px serif', color: '#000000', align: 'left'   },
+      dateOfIssue:          { x: 55,   y: 93,   font: '100px serif', color: '#000000', align: 'left'   },
       qrCode:               { x: 19.7, y: 85.8, width: 12.5, height: 11.5 }
     }
   };
@@ -147,10 +147,18 @@ var CertificateGenerator = (() => {
     _ctx.drawImage(_templateImg, 0, 0);
 
     if (student.photo) {
+      console.log('Photo URL found:', student.photo.substring(0, 80) + '...');
       try {
-        const photoImg = await _loadImage(student.photo, 5000);
-        if (photoImg) _drawPhoto(photoImg);
-      } catch (e) { console.warn('Photo failed:', e.message); }
+        const photoImg = await _loadImage(student.photo, 10000);
+        if (photoImg) {
+          console.log('Photo loaded successfully:', photoImg.width, 'x', photoImg.height);
+          _drawPhoto(photoImg);
+        } else {
+          console.warn('Photo loaded but returned null');
+        }
+      } catch (e) { console.warn('Photo failed to load:', e.message); }
+    } else {
+      console.log('No photo URL in student data');
     }
 
     _drawQRCode(student.certificateNumber);
