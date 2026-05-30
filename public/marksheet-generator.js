@@ -474,17 +474,8 @@ var MarksheetGenerator = (() => {
 
     /** Fetch field positions from your back-end settings API. */
     async fetchConfigFromAPI(apiBaseUrl = '/api/settings') {
-      try {
-        const res  = await fetch(`${apiBaseUrl}/certificate-template`);
-        const data = await res.json();
-        if (data.success && data.data?.marksheet) {
-          CONFIG.fields = { ...CONFIG.fields, ...data.data.marksheet };
-          console.log('Template config loaded from API:', CONFIG.fields);
-          return true;
-        }
-      } catch (err) {
-        console.warn('Failed to fetch template config from API:', err);
-      }
+      // API config not calibrated for this template — skip to avoid overriding correct positions
+      console.log('Marksheet: using built-in field positions (API config skipped)');
       return false;
     }
   };
