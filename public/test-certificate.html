@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Certificate Generator Test</title>
+</head>
+<body>
+    <h1>Certificate Generator Test</h1>
+    <canvas id="certCanvas" style="border: 1px solid black;"></canvas>
+    <br><br>
+    <button onclick="testGenerator()">Test Certificate Generation</button>
+    <br><br>
+    <div id="status"></div>
+    <img id="result" style="max-width: 400px; border: 1px solid black;">
+
+    <script src="/certificate-generator.js"></script>
+    <script>
+        async function testGenerator() {
+            const status = document.getElementById('status');
+            status.textContent = 'Loading template...';
+
+            try {
+                await window.CertificateGenerator.loadTemplate('/student-certificate-template.jpeg');
+                status.textContent = 'Template loaded. Generating certificate...';
+
+                const testData = {
+                    atcCode: 'TEST-001',
+                    studentNameCombined: 'John Doe S/O Jane Doe',
+                    courseName: 'Computer Science',
+                    grade: 'A+',
+                    courseDuration: '4 Years',
+                    coursePeriodFrom: '2020-01-01',
+                    coursePeriodTo: '2024-01-01',
+                    certificateNumber: 'CERT-2024-001',
+                    dateOfIssue: '2024-12-01'
+                };
+
+                const dataURL = await window.CertificateGenerator.getDataURL(testData);
+                status.textContent = 'Certificate generated successfully!';
+                document.getElementById('result').src = dataURL;
+
+            } catch (error) {
+                status.textContent = 'Error: ' + error.message;
+                console.error(error);
+            }
+        }
+    </script>
+</body>
+</html>

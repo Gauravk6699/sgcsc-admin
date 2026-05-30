@@ -1,0 +1,33 @@
+:root {
+  /* change this to your new primary color */
+  /* --bs-primary: #6f42c1;  */
+}
+
+/* Fix for modal scrolling */
+.modal-dialog-scrollable {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100% - 1rem);
+  margin: 0.5rem auto;
+}
+
+.modal-dialog-scrollable .modal-content {
+  max-height: calc(100vh - 1rem);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-dialog-scrollable .modal-body {
+  overflow-y: auto !important;
+  flex: 1 1 auto;
+  max-height: calc(100vh - 200px);
+}
+
+.modal.d-block {
+  overflow-y: auto;
+}
+
+.modal-xl {
+  max-width: 1140px;
+}

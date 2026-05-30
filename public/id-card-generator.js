@@ -1,0 +1,270 @@
+/**
+ * ID CARD GENERATOR
+ * Generates ID Card PDFs from a JPG template
+ *
+ * HOW TO USE:
+ *   1. Load template:   await IDCardGenerator.loadTemplate('/id-card-template.jpeg')
+ *   2. Download PDF:   IDCardGenerator.download({ ...idCardData })
+ *   3. Preview:        IDCardGenerator.preview({ ...idCardData })  ← blob
+ *   4. Update config:  IDCardGenerator.updateConfig({ fields: { ... } })
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ */
+(function () {
+  'use strict';
+
+  // CONFIGURATION — adjust positions to your JPG
+  const CONFIG = {
+    templatePath: 'id-card-template.jpeg',
+    fields: {
+      studentName:       { x: 49, y: 49, font: '80px serif', color: '#000000', align: 'center' },
+      sessionFrom:       { x: 49, y: 28, font: '60px serif', color: '#000000', align: 'left' },
+      sessionTo:         { x: 59, y: 28, font: '60px serif', color: '#000000', align: 'left' },
+      photo:            { x: 35, y: 29.3, width: 30, height: 17 },
+      fatherName:        { x: 51, y: 55.8, font: '80px serif', color: '#000000', align: 'left' },
+      motherName:        { x: 51, y: 59.5, font: '80px serif', color: '#000000', align: 'left' },
+      enrollmentNo:      { x: 51, y: 63, font: '80px serif', color: '#000000', align: 'left' },
+      dateOfBirth:       { x: 51, y: 66.7, font: '80px serif', color: '#000000', align: 'left' },
+      contactNo:         { x: 51, y: 71, font: '80px serif', color: '#000000', align: 'left' },
+      address:           { x: 51, y: 74, font: '60px serif', color: '#000000', align: 'left', maxWidth: 35, lineHeight: 2.0 },
+      mobileNo:          { x: 51, y: 82.5, font: '80px serif', color: '#000000', align: 'left' },
+      centerMobileNo:    { x: 51, y: 85.8, font: '80px serif', color: '#000000', align: 'left' },
+    }
+  };
+
+  let _templateImg = null;
+  let _canvas = null;
+  let _ctx = null;
+
+  function _initCanvas() {
+    if (!_canvas) {
+      _canvas = document.getElementById('idCardCanvas');
+      if (!_canvas) {
+        _canvas = document.createElement('canvas');
+        _canvas.id = 'idCardCanvas';
+        _canvas.style.display = 'none';
+        document.body.appendChild(_canvas);
+      }
+      if (_canvas) {
+        _ctx = _canvas.getContext('2d');
+      }
+    }
+    return _canvas && _ctx;
+  }
+
+  function _fmtDate(d) {
+    if (!d) return '';
+    const dt = new Date(d);
+    if (Number.isNaN(dt.getTime())) return String(d);
+    return dt.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  }
+
+  function _pct(val, total) { return (val / 100) * total; }
+
+  function _drawField(field, text) {
+    if (!text || !_ctx) return;
+    const W = _canvas.width, H = _canvas.height;
+    _ctx.save();
+    _ctx.font = field.font;
+    _ctx.fillStyle = field.color;
+    _ctx.textAlign = field.align || 'left';
+    _ctx.fillText(text, _pct(field.x, W), _pct(field.y, H));
+    _ctx.restore();
+  }
+
+  function _drawWrappedText(field, text) {
+    if (!text || !_ctx) return;
+    const W = _canvas.width, H = _canvas.height;
+    const maxWidth = _pct(field.maxWidth || 40, W);
+    const lineHeight = _pct(field.lineHeight || 3, H);
+    const x = _pct(field.x, W);
+    const y = _pct(field.y, H);
+    _ctx.save();
+    _ctx.font = field.font;
+    _ctx.fillStyle = field.color;
+    _ctx.textAlign = field.align || 'left';
+    const words = text.split(' ');
+    let line = '';
+    let currentY = y;
+    for (let i = 0; i < words.length; i++) {
+      const testLine = line + words[i] + ' ';
+      if (_ctx.measureText(testLine).width > maxWidth && i > 0) {
+        _ctx.fillText(line, x, currentY);
+        line = words[i] + ' ';
+        currentY += lineHeight;
+      } else {
+        line = testLine;
+      }
+    }
+    _ctx.fillText(line, x, currentY);
+    _ctx.restore();
+  }
+
+  function _resolveIDCardData(idCardOrRoll) {
+    if (typeof idCardOrRoll === 'string') {
+      if (typeof window !== 'undefined' && window.StudentDB) {
+        const found = window.StudentDB.find(idCardOrRoll);
+        if (found) {
+          return {
+            studentName:    found.studentName || found.applicantName || '',
+            sessionFrom:    found.sessionFrom || '',
+            sessionTo:      found.sessionTo || '',
+            fatherName:     found.fatherName || '',
+            motherName:     found.motherName || '',
+            enrollmentNo:   found.enrollmentNo || found.rollNumber || '',
+            dateOfBirth:    found.dob || found.dateOfBirth || '',
+            contactNo:      found.contactNo || found.mobileNo || found.phone || '',
+            address:        found.address || '',
+            mobileNo:       found.mobileNo || found.phone || '',
+            centerMobileNo: found.centerMobileNo || '',
+            photo:          found.photo || ''
+          };
+        }
+        console.warn('No student found with roll/id-card lookup:', idCardOrRoll);
+        return { enrollmentNo: idCardOrRoll };
+      }
+      console.warn('StudentDB not available, cannot auto-fill');
+      return { enrollmentNo: idCardOrRoll };
+    }
+    return idCardOrRoll || {};
+  }
+
+  function _loadImage(src) {
+    return new Promise((resolve, reject) => {
+      if (!src) { resolve(null); return; }
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error('Failed to load image: ' + src));
+      img.src = src;
+    });
+  }
+
+  async function _render(idCard) {
+    const data = _resolveIDCardData(idCard);
+    if (!_templateImg) throw new Error('Template not loaded. Call IDCardGenerator.loadTemplate() first.');
+    if (!_initCanvas()) throw new Error('Canvas not found. Make sure <canvas id="idCardCanvas"> exists.');
+
+    _canvas.width  = _templateImg.naturalWidth;
+    _canvas.height = _templateImg.naturalHeight;
+    _ctx.imageSmoothingEnabled = true;
+    _ctx.imageSmoothingQuality = 'high';
+    _ctx.drawImage(_templateImg, 0, 0);
+
+    if (data.photo) {
+      try {
+        const photoImg = await _loadImage(data.photo);
+        if (photoImg) {
+          const pf = CONFIG.fields.photo;
+          const cx = _pct(pf.x, _canvas.width);
+          const cy = _pct(pf.y, _canvas.height);
+          const cw = _pct(pf.width, _canvas.width);
+          const ch = _pct(pf.height, _canvas.height);
+          const tempCanvas = document.createElement('canvas');
+          const tempCtx = tempCanvas.getContext('2d');
+          tempCanvas.width = cw;
+          tempCanvas.height = ch;
+          tempCtx.beginPath();
+          tempCtx.arc(cw / 2, ch / 2, Math.min(cw, ch) / 2, 0, Math.PI * 2);
+          tempCtx.fillStyle = '#000000';
+          tempCtx.fill();
+          tempCtx.globalCompositeOperation = 'source-in';
+          tempCtx.drawImage(photoImg, 0, 0, cw, ch);
+          _ctx.drawImage(tempCanvas, cx, cy, cw, ch);
+        }
+      } catch (e) { console.warn('Could not load student photo:', e); }
+    }
+
+    _drawField(CONFIG.fields.studentName,    data.studentName);
+    _drawField(CONFIG.fields.sessionFrom,    data.sessionFrom);
+    _drawField(CONFIG.fields.sessionTo,      data.sessionTo);
+    _drawField(CONFIG.fields.fatherName,     data.fatherName);
+    _drawField(CONFIG.fields.motherName,     data.motherName);
+    _drawField(CONFIG.fields.enrollmentNo,   data.enrollmentNo);
+    _drawField(CONFIG.fields.dateOfBirth,    _fmtDate(data.dateOfBirth));
+    _drawField(CONFIG.fields.contactNo,      data.contactNo);
+    _drawWrappedText(CONFIG.fields.address,  data.address);
+    _drawField(CONFIG.fields.mobileNo,       data.mobileNo);
+    _drawField(CONFIG.fields.centerMobileNo, data.centerMobileNo);
+  }
+
+  // ── PDF generation — A4 page size so Chrome opens at normal zoom ──────────
+  // Using a custom pixel-sized page causes Chrome to open at ~16% zoom.
+  // Forcing A4 makes Chrome open at a sensible default zoom level.
+  function _canvasToPDF() {
+    const { jsPDF } = window.jspdf;
+    const W = _canvas.width, H = _canvas.height;
+    const isLandscape = W > H;
+    const pageW = isLandscape ? 297 : 210;  // A4 in mm
+    const pageH = isLandscape ? 210 : 297;
+
+    const pdf = new jsPDF({
+      orientation: isLandscape ? 'landscape' : 'portrait',
+      unit: 'mm',
+      format: 'a4'
+    });
+
+    // Lossless PNG embed — avoids double-JPEG-compression artefacts
+    const imgData = _canvas.toDataURL('image/png');
+    pdf.addImage(imgData, 'PNG', 0, 0, pageW, pageH);
+    return pdf;
+  }
+
+  function _safeName(name) {
+    if (!name) return 'id-card';
+    return name.replace(/[^a-z0-9]/gi, '-').replace(/-+/g, '-').toLowerCase();
+  }
+
+  // Public API
+  window.IDCardGenerator = {
+    async loadTemplate(path) {
+      _initCanvas();
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload  = () => { _templateImg = img; console.log('Template loaded:', img.width, 'x', img.height); resolve(img); };
+        img.onerror = (e) => { console.error('Load failed:', e); reject(new Error('Failed to load: ' + (path || CONFIG.templatePath))); };
+        img.src = path || CONFIG.templatePath;
+      });
+    },
+
+    async download(idCardOrRoll) {
+      try {
+        await _render(idCardOrRoll);
+        const pdf  = _canvasToPDF();
+        const data = _resolveIDCardData(idCardOrRoll);
+        pdf.save(`id-card_${_safeName(data.enrollmentNo || data.studentName)}.pdf`);
+      } catch (err) {
+        console.error('IDCardGenerator.download error:', err);
+        alert('Failed to generate PDF: ' + err.message);
+      }
+    },
+
+    async preview(idCardOrRoll) {
+      await _render(idCardOrRoll);
+      return new Promise((resolve, reject) => {
+        _canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('toBlob returned null')), 'image/png');
+      });
+    },
+
+    async downloadAll(idCards, delayMs = 500) {
+      if (!Array.isArray(idCards) || idCards.length === 0) { console.warn('No ID cards to download'); return; }
+      for (let i = 0; i < idCards.length; i++) {
+        try {
+          await _render(idCards[i]);
+          const pdf  = _canvasToPDF();
+          const data = _resolveIDCardData(idCards[i]);
+          pdf.save(`id-card_${_safeName(data.enrollmentNo || data.studentName || i)}.pdf`);
+          if (i < idCards.length - 1) await new Promise(r => setTimeout(r, delayMs));
+        } catch (err) { console.error(`Error generating ID card ${i}:`, err); }
+      }
+    },
+
+    updateConfig(newConfig) {
+      if (newConfig && newConfig.fields)       Object.assign(CONFIG.fields, newConfig.fields);
+      if (newConfig && newConfig.templatePath) CONFIG.templatePath = newConfig.templatePath;
+    },
+
+    getConfig() { return JSON.parse(JSON.stringify(CONFIG)); }
+  };
+})();
