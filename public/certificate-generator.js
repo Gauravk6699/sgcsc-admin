@@ -317,11 +317,8 @@ var CertificateGenerator = (() => {
     updateConfig(c)                { if (c?.fields) this.updateFieldPositions(c.fields); },
 
     async fetchConfigFromAPI(base='/api/settings') {
-      try {
-        const r = await fetch(`${base}/certificate-template`);
-        const d = await r.json();
-        if (d.success && d.data?.studentCertificate) { CONFIG.fields={...CONFIG.fields,...d.data.studentCertificate}; return true; }
-      } catch(e) { console.warn('Config fetch failed:', e); }
+      // API config not calibrated for this template — skip to avoid overriding correct positions
+      console.log('Certificate: using built-in field positions (API config skipped)');
       return false;
     },
 

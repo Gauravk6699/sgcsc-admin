@@ -264,26 +264,8 @@ var TypingCertificateGenerator = (() => {
   // Fetch config from API and apply
   // ─────────────────────────────────────────────
   async function fetchConfigFromAPI(apiBaseUrl = '/api/settings') {
-    try {
-      const response = await fetch(`${apiBaseUrl}/certificate-template`);
-      const data = await response.json();
-      if (data.success && data.data && data.data.typingCertificate) {
-        const config = data.data.typingCertificate;
-        // Apply field positions
-        if (config.fields) {
-          CONFIG.fields = { ...CONFIG.fields, ...config.fields };
-        }
-        // Apply template path from API if present
-        if (config.templatePath) {
-          CONFIG.templatePath = config.templatePath;
-          console.log('Template path loaded from API:', CONFIG.templatePath);
-        }
-        console.log('Template config loaded from API:', CONFIG);
-        return true;
-      }
-    } catch (err) {
-      console.warn('Failed to fetch template config from API:', err);
-    }
+    // API config not calibrated for this template — skip to avoid overriding correct positions
+    console.log('TypingCertificate: using built-in field positions (API config skipped)');
     return false;
   }
 
