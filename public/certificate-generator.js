@@ -4,7 +4,7 @@
 
 var CertificateGenerator = (() => {
 
-  let VERIFY_BASE_URL = 'https://sgcsc-backend.onrender.com/verify';
+  let VERIFY_BASE_URL = 'https://sgcsc.in';
 
   const CONFIG = {
     templatePath: 'student-certificate-template.jpeg',
@@ -18,8 +18,8 @@ var CertificateGenerator = (() => {
       courseDuration:       { x: 54,   y: 61.5, font: '160px serif', color: '#000000', align: 'left'   },
       coursePeriodFrom:     { x: 41.5, y: 64.3, font: '160px serif', color: '#000000', align: 'left'   },
       coursePeriodTo:       { x: 61,   y: 64.3, font: '160px serif', color: '#000000', align: 'left'   },
-      certificateNumber:    { x: 23,   y: 93,   font: '160px serif', color: '#000000', align: 'left'   },
-      dateOfIssue:          { x: 55,   y: 93,   font: '160px serif', color: '#000000', align: 'left'   },
+      certificateNumber:    { x: 23,   y: 93,   font: '100px serif', color: '#000000', align: 'left'   },
+      dateOfIssue:          { x: 55,   y: 93,   font: '100px serif', color: '#000000', align: 'left'   },
       qrCode:               { x: 19.7, y: 85.8, width: 12.5, height: 11.5 }
     }
   };
@@ -70,7 +70,7 @@ var CertificateGenerator = (() => {
     const qrField = CONFIG.fields.qrCode;
     if (!qrField) return;
 
-    const verifyUrl = `${VERIFY_BASE_URL}/view/${encodeURIComponent(certificateNumber)}`;
+    const verifyUrl = `${VERIFY_BASE_URL}/verify/${encodeURIComponent(certificateNumber)}`;
     const W = _canvas.width, H = _canvas.height;
     const size = Math.min(_pct(qrField.width, W), _pct(qrField.height, H));
     const x    = _pct(qrField.x, W) - size / 2;
@@ -147,10 +147,18 @@ var CertificateGenerator = (() => {
     _ctx.drawImage(_templateImg, 0, 0);
 
     if (student.photo) {
+      console.log('Photo URL found:', student.photo.substring(0, 80) + '...');
       try {
-        const photoImg = await _loadImage(student.photo, 5000);
-        if (photoImg) _drawPhoto(photoImg);
-      } catch (e) { console.warn('Photo failed:', e.message); }
+        const photoImg = await _loadImage(student.photo, 10000);
+        if (photoImg) {
+          console.log('Photo loaded successfully:', photoImg.width, 'x', photoImg.height);
+          _drawPhoto(photoImg);
+        } else {
+          console.warn('Photo loaded but returned null');
+        }
+      } catch (e) { console.warn('Photo failed to load:', e.message); }
+    } else {
+      console.log('No photo URL in student data');
     }
 
     _drawQRCode(student.certificateNumber);
