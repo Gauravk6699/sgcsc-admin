@@ -195,11 +195,11 @@ var CertificateGenerator = (() => {
     const PAGE_W_MM = 210;
     const PAGE_H_MM = 297;
 
-    // Rasterise canvas at 250 DPI for larger PDFs (~3MB).
-    // 250 DPI on A4 = ~2050 × 2913 px — higher quality for print.
-    const DPI       = 250;
-    const PAGE_PX_W = Math.round((PAGE_W_MM / 25.4) * DPI);  // ~2050
-    const PAGE_PX_H = Math.round((PAGE_H_MM / 25.4) * DPI);  // ~2913
+    // Rasterise canvas at 300 DPI for highest quality PDFs (~4MB).
+    // 300 DPI on A4 = ~2480 × 3508 px — print quality.
+    const DPI       = 300;
+    const PAGE_PX_W = Math.round((PAGE_W_MM / 25.4) * DPI);  // ~2480
+    const PAGE_PX_H = Math.round((PAGE_H_MM / 25.4) * DPI);  // ~3508
 
     const off  = document.createElement('canvas');
     off.width  = PAGE_PX_W;
@@ -209,7 +209,7 @@ var CertificateGenerator = (() => {
     octx.imageSmoothingQuality = 'high';
     octx.drawImage(_canvas, 0, 0, PAGE_PX_W, PAGE_PX_H);
 
-    const imgData = off.toDataURL('image/jpeg', 0.92);
+    const imgData = off.toDataURL('image/jpeg', 0.95);
 
     const pdf = new jsPDF({
       orientation: 'portrait',
