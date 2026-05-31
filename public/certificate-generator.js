@@ -16,8 +16,8 @@ var CertificateGenerator = (() => {
       grade:                { x: 56.5, y: 55.5, font: '160px serif', color: '#000000', align: 'left'   },
       gradeExtra:           { x: 80,   y: 76.3, font: '160px serif', color: '#000000', align: 'left'   },
       courseDuration:       { x: 54,   y: 61.5, font: '160px serif', color: '#000000', align: 'left'   },
-      coursePeriodFrom:     { x: 41.5, y: 64.3, font: '160px serif', color: '#000000', align: 'left'   },
-      coursePeriodTo:       { x: 61,   y: 64.3, font: '160px serif', color: '#000000', align: 'left'   },
+      coursePeriodFrom:     { x: 41.5, y: 64.3, font: '156px serif', color: '#000000', align: 'left'   },
+      coursePeriodTo:       { x: 61,   y: 64.3, font: '156px serif', color: '#000000', align: 'left'   },
       certificateNumber:    { x: 23,   y: 93,   font: '100px serif', color: '#000000', align: 'left'   },
       dateOfIssue:          { x: 55,   y: 93,   font: '100px serif', color: '#000000', align: 'left'   },
       qrCode:               { x: 19.7, y: 85.8, width: 12.5, height: 11.5 }
@@ -195,11 +195,11 @@ var CertificateGenerator = (() => {
     const PAGE_W_MM = 210;
     const PAGE_H_MM = 297;
 
-    // Rasterise canvas at 200 DPI for 2-3MB PDFs.
-    // 200 DPI on A4 = ~1653 × 2339 px — good quality for screen viewing.
-    const DPI       = 200;
-    const PAGE_PX_W = Math.round((PAGE_W_MM / 25.4) * DPI);  // ~1653
-    const PAGE_PX_H = Math.round((PAGE_H_MM / 25.4) * DPI);  // ~2339
+    // Rasterise canvas at 250 DPI for larger PDFs (~3MB).
+    // 250 DPI on A4 = ~2050 × 2913 px — higher quality for print.
+    const DPI       = 250;
+    const PAGE_PX_W = Math.round((PAGE_W_MM / 25.4) * DPI);  // ~2050
+    const PAGE_PX_H = Math.round((PAGE_H_MM / 25.4) * DPI);  // ~2913
 
     const off  = document.createElement('canvas');
     off.width  = PAGE_PX_W;
