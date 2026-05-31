@@ -200,8 +200,8 @@ var MarksheetGenerator = (() => {
     const { jsPDF } = window.jspdf;
     const W = _canvas.width, H = _canvas.height;
 
-    // Resize to 200 DPI for slightly larger file size
-    const TARGET_DPI = 200;
+    // Resize to 150 DPI for 2-3MB PDFs
+    const TARGET_DPI = 150;
     const scale = TARGET_DPI / _templateDPI;
     const newW = Math.round(W * scale);
     const newH = Math.round(H * scale);

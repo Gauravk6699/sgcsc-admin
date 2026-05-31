@@ -177,9 +177,9 @@ var AdmitCardGenerator = (() => {
       format: 'a4'
     });
 
-    // Lossless PNG embed — avoids double-JPEG-compression artefacts
-    const imgData = _canvas.toDataURL('image/png');
-    pdf.addImage(imgData, 'PNG', 0, 0, pageW, pageH);
+    // Lossless JPEG embed — smaller file size
+    const imgData = _canvas.toDataURL('image/jpeg', 0.85);
+    pdf.addImage(imgData, 'JPEG', 0, 0, pageW, pageH);
     return pdf;
   }
 

@@ -195,11 +195,11 @@ var CertificateGenerator = (() => {
     const PAGE_W_MM = 210;
     const PAGE_H_MM = 297;
 
-    // Rasterise canvas at 150 DPI for a good quality/size balance.
-    // 150 DPI on A4 = ~1240 × 1754 px — sharp enough for print, not oversized.
-    const DPI       = 150;
-    const PAGE_PX_W = Math.round((PAGE_W_MM / 25.4) * DPI);  // ~1240
-    const PAGE_PX_H = Math.round((PAGE_H_MM / 25.4) * DPI);  // ~1754
+    // Rasterise canvas at 200 DPI for 2-3MB PDFs.
+    // 200 DPI on A4 = ~1653 × 2339 px — good quality for screen viewing.
+    const DPI       = 200;
+    const PAGE_PX_W = Math.round((PAGE_W_MM / 25.4) * DPI);  // ~1653
+    const PAGE_PX_H = Math.round((PAGE_H_MM / 25.4) * DPI);  // ~2339
 
     const off  = document.createElement('canvas');
     off.width  = PAGE_PX_W;
