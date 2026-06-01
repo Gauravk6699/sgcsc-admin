@@ -26,7 +26,7 @@
       enrollmentNo:   { x: 51,   y: 63,   font: '80px serif',  color: '#000000', align: 'left'   },
       dateOfBirth:    { x: 51,   y: 66.7, font: '80px serif',  color: '#000000', align: 'left'   },
       contactNo:      { x: 51,   y: 71,   font: '80px serif',  color: '#000000', align: 'left'   },
-      address:        { x: 51,   y: 74,   font: '60px serif',  color: '#000000', align: 'left', maxWidth: 35, lineHeight: 2.0 },
+      address:        { x: 51,   y: 74,   font: '800px serif',  color: '#000000', align: 'left', maxWidth: 35, lineHeight: 2.0 },
       mobileNo:       { x: 51,   y: 82.5, font: '80px serif',  color: '#000000', align: 'left'   },
       centerMobileNo: { x: 51,   y: 85.8, font: '80px serif',  color: '#000000', align: 'left'   },
     }
