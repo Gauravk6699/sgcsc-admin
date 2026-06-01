@@ -77,7 +77,7 @@ const AssignmentList = lazy(() => import("./pages/AssignmentList"));
 const SettingsSocial = lazy(() => import("./pages/SettingsSocial"));
 const SettingsCreditPricing = lazy(() => import("./pages/SettingsCreditPricing"));
 const SettingsCreditQR = lazy(() => import("./pages/SettingsCreditQR"));
-const SettingsTemplateConfig = lazy(() => import("./pages/SettingsTemplateConfig"));
+
 const FeeReceipt = lazy(() => import("./pages/FeeReceipt"));
 const ReceiptManagement = lazy(() => import("./pages/ReceiptManagement"));
 // const SettingsBranding = lazy(() => import("./pages/SettingsBranding"));
@@ -542,16 +542,7 @@ export default function App() {
               </PrivateRoute>
             }
           />
-          <Route
-            path="/settings/template-config"
-            element={
-              <PrivateRoute>
-                <ProtectedLayout>
-                  <SettingsTemplateConfig />
-                </ProtectedLayout>
-              </PrivateRoute>
-            }
-          />
+          
           {/*
           <Route
             path="/settings/branding"
