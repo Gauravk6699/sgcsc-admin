@@ -303,9 +303,7 @@ export default function Sidebar() {
               <li className="mb-1">
                 <NavLink to="/settings/credit-qr" className={subLinkClass}>Credit QR</NavLink>
               </li>
-              <li className="mb-1">
-                <NavLink to="/settings/template-config" className={subLinkClass}>Template Config</NavLink>
-              </li>
+
             </ul>
           )}
         </li>

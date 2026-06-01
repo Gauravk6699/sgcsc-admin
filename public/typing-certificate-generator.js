@@ -23,15 +23,15 @@ var TypingCertificateGenerator = (() => {
 
     fields: {
       // { x, y } as % of image dimensions. font is px at full resolution.
-      studentName:        { x: 58.5, y: 51.5, font: '200px serif',     color: '#000000', align: 'center' },
+      studentName:        { x: 63, y: 52.3, font: '200px serif',     color: '#000000', align: 'center' },
       fatherHusbandName:  { x: 32,  y: 57, font: '200px serif',       color: '#000000', align: 'left' },
       motherName:         { x: 70,  y: 57, font: '200px serif',       color: '#000000', align: 'left' },
       enrollmentNumber:   { x: 22.5, y: 77.5, font: '150px serif',    color: '#000000', align: 'left' },
       computerTyping:     { x: 22.5, y: 82, font: '150px serif',      color: '#000000', align: 'left' },
       certificateNo:      { x: 22.5, y: 86.5, font: '150px serif',     color: '#000000', align: 'left' },
       dateOfIssue:        { x: 22.5, y: 90.7, font: '150px serif',     color: '#000000', align: 'left' },
-      sessionFrom:        { x: 74,  y: 61, font: '120px serif',       color: '#000000', align: 'left' },
-      sessionTo:          { x: 83,  y: 61, font: '120px serif',       color: '#000000', align: 'left' },
+      sessionFrom:        { x: 74,  y: 61, font: '200px serif',       color: '#000000', align: 'left' },
+      sessionTo:          { x: 83,  y: 61, font: '200px serif',       color: '#000000', align: 'left' },
       grade:              { x: 86,  y: 65, font: '200px serif',       color: '#000000', align: 'left' },
       studyCentre:        { x: 37,  y: 69.4, font: '200px serif',     color: '#000000', align: 'left' },
       wordsPerMinute:     { x: 28.5, y: 82, font: '150px serif',      color: '#000000', align: 'left' },

@@ -8,16 +8,12 @@ let certificateGenerator = null;
 // Initialize Certificate Generator function
 const initCertificateGenerator = async () => {
   if (certificateGenerator) return certificateGenerator;
-  
-  // Ensure canvas is available before loading template
+
   const canvasElement = document.getElementById('certCanvas');
   if (!canvasElement) {
-    console.warn('Canvas element not found in DOM yet. Waiting...');
-    // Wait for canvas to be available
     await new Promise(resolve => setTimeout(resolve, 500));
   }
-  
-  // Check if already available on window
+
   if (window.CertificateGenerator) {
     certificateGenerator = window.CertificateGenerator;
     try {
@@ -25,38 +21,13 @@ const initCertificateGenerator = async () => {
       console.log('Certificate template loaded successfully');
       return certificateGenerator;
     } catch (err) {
-      console.warn('Certificate template not found. Please upload a template to /public/student-certificate-template.jpeg');
+      console.warn('Certificate template not found:', err);
       return certificateGenerator;
     }
   }
-  
-  // Script not loaded yet, dynamically load it
+
   return new Promise((resolve) => {
-    // Load jspdf if not present
-    if (!window.jspdf) {
-      const jspdfScript = document.createElement('script');
-      jspdfScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
-      jspdfScript.onload = () => {
-        // Load certificate-generator
-        const certScript = document.createElement('script');
-        certScript.src = '/certificate-generator.js';
-        certScript.onload = async () => {
-          if (window.CertificateGenerator) {
-            certificateGenerator = window.CertificateGenerator;
-            try {
-              await certificateGenerator.loadTemplate('/student-certificate-template.jpeg');
-              console.log('Certificate template loaded successfully');
-            } catch (err) {
-              console.warn('Certificate template not found. Please upload a template to /public/student-certificate-template.jpeg');
-            }
-          }
-          resolve(certificateGenerator);
-        };
-        document.body.appendChild(certScript);
-      };
-      document.body.appendChild(jspdfScript);
-    } else if (!window.CertificateGenerator) {
-      // jspdf loaded but certificate-generator not loaded
+    const loadCertScript = async () => {
       const certScript = document.createElement('script');
       certScript.src = '/certificate-generator.js';
       certScript.onload = async () => {
@@ -66,15 +37,43 @@ const initCertificateGenerator = async () => {
             await certificateGenerator.loadTemplate('/student-certificate-template.jpeg');
             console.log('Certificate template loaded successfully');
           } catch (err) {
-            console.warn('Certificate template not found. Please upload a template to /public/student-certificate-template.jpeg');
+            console.warn('Certificate template not found:', err);
           }
         }
         resolve(certificateGenerator);
       };
       document.body.appendChild(certScript);
+    };
+
+    if (!window.jspdf) {
+      const jspdfScript = document.createElement('script');
+      jspdfScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+      jspdfScript.onload = loadCertScript;
+      document.body.appendChild(jspdfScript);
+    } else {
+      loadCertScript();
     }
   });
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Build the studentData object that CertificateGenerator expects,
+// from a saved certificate record. Used by both download and preview.
+// ─────────────────────────────────────────────────────────────────────────────
+const buildStudentData = (certificate) => ({
+  centerName:           certificate.centerName || '',
+  studentNameCombined:  certificate.fatherName
+                          ? `${certificate.name} S/O, D/O, W/O ${certificate.fatherName}`
+                          : (certificate.name || ''),
+  courseName:           certificate.courseName     || '',
+  grade:                certificate.grade          || '',
+  courseDuration:       certificate.courseDuration || '',
+  coursePeriodFrom:     certificate.coursePeriodFrom || '',
+  coursePeriodTo:       certificate.coursePeriodTo   || '',
+  certificateNumber:    certificate.certificateNumber || '',
+  dateOfIssue:          certificate.issueDate         || '',
+  photo:                certificate.photo              || '',
+});
 
 function fmtDate(d) {
   if (!d) return '-';
@@ -104,7 +103,6 @@ function CertificateModal({ show, onClose, onSaved, initial }) {
 
   useEffect(() => {
     if (!show) return;
-
     setError('');
     setSaving(false);
 
@@ -120,78 +118,30 @@ function CertificateModal({ show, onClose, onSaved, initial }) {
       setCoursePeriodTo(initial.coursePeriodTo ? new Date(initial.coursePeriodTo).toISOString().slice(0, 10) : '');
       setEnrollmentNumber(initial.enrollmentNumber || '');
       setCertificateNumber(initial.certificateNumber || '');
-      setIssueDate(
-        initial.issueDate
-          ? new Date(initial.issueDate).toISOString().slice(0, 10)
-          : ''
-      );
+      setIssueDate(initial.issueDate ? new Date(initial.issueDate).toISOString().slice(0, 10) : '');
     } else {
-      setName('');
-      setFatherName('');
-      setCourseName('');
-      setSessionFrom('');
-      setSessionTo('');
-      setGrade('');
-      setCourseDuration('');
-      setCoursePeriodFrom('');
-      setCoursePeriodTo('');
-      setEnrollmentNumber('');
-      setCertificateNumber('');
-      setIssueDate('');
+      setName(''); setFatherName(''); setCourseName('');
+      setSessionFrom(''); setSessionTo(''); setGrade('');
+      setCourseDuration(''); setCoursePeriodFrom(''); setCoursePeriodTo('');
+      setEnrollmentNumber(''); setCertificateNumber(''); setIssueDate('');
     }
   }, [show, initial]);
 
   if (!show) return null;
 
   const validate = () => {
-    if (!name.trim()) {
-      setError('Name is required.');
-      return false;
-    }
-    if (!fatherName.trim()) {
-      setError("Father's Name is required.");
-      return false;
-    }
-    if (!courseName.trim()) {
-      setError('Course Name is required.');
-      return false;
-    }
-    if (!sessionFrom) {
-      setError('Session From is required.');
-      return false;
-    }
-    if (!sessionTo) {
-      setError('Session To is required.');
-      return false;
-    }
-    if (!grade.trim()) {
-      setError('Grade is required.');
-      return false;
-    }
-    if (!courseDuration.trim()) {
-      setError('Course Duration is required.');
-      return false;
-    }
-    if (!coursePeriodFrom) {
-      setError('Course Period From is required.');
-      return false;
-    }
-    if (!coursePeriodTo) {
-      setError('Course Period To is required.');
-      return false;
-    }
-    if (!enrollmentNumber.trim()) {
-      setError('Enrollment Number is required.');
-      return false;
-    }
-    if (!certificateNumber.trim()) {
-      setError('Certificate Number is required.');
-      return false;
-    }
-    if (!issueDate) {
-      setError('Issue Date is required.');
-      return false;
-    }
+    if (!name.trim())             { setError('Name is required.');              return false; }
+    if (!fatherName.trim())       { setError("Father's Name is required.");     return false; }
+    if (!courseName.trim())       { setError('Course Name is required.');       return false; }
+    if (!sessionFrom)             { setError('Session From is required.');      return false; }
+    if (!sessionTo)               { setError('Session To is required.');        return false; }
+    if (!grade.trim())            { setError('Grade is required.');             return false; }
+    if (!courseDuration.trim())   { setError('Course Duration is required.');   return false; }
+    if (!coursePeriodFrom)        { setError('Course Period From is required.'); return false; }
+    if (!coursePeriodTo)          { setError('Course Period To is required.');  return false; }
+    if (!enrollmentNumber.trim()) { setError('Enrollment Number is required.'); return false; }
+    if (!certificateNumber.trim()){ setError('Certificate Number is required.'); return false; }
+    if (!issueDate)               { setError('Issue Date is required.');        return false; }
     return true;
   };
 
@@ -199,47 +149,44 @@ function CertificateModal({ show, onClose, onSaved, initial }) {
     e.preventDefault();
     setError('');
     if (!validate()) return;
-
     setSaving(true);
 
     try {
-      // Generate certificate image data URL for storing
+      // Store only a low-res preview image in DB (not used for download)
       let certificateImage = null;
       await initCertificateGenerator();
       if (certificateGenerator) {
         try {
-          const studentNameCombined = fatherName 
-            ? `${name} S/O, D/O, W/O ${fatherName}` 
+          const studentNameCombined = fatherName
+            ? `${name} S/O, D/O, W/O ${fatherName}`
             : name;
-          
-          // Try to get student photo from the enrollment number lookup
+
           let studentPhoto = '';
           try {
             const res = await API.get('/students');
             const allStudents = Array.isArray(res.data) ? res.data : Array.isArray(res.data?.data) ? res.data.data : [];
-            const student = allStudents.find(s => 
+            const student = allStudents.find(s =>
               (s.enrollmentNumber || s.rollNumber || '').toLowerCase() === enrollmentNumber.trim().toLowerCase()
             );
-            if (student && student.photo) {
-              studentPhoto = student.photo;
-            }
+            if (student && student.photo) studentPhoto = student.photo;
           } catch (lookupErr) {
             console.warn('Could not lookup student photo:', lookupErr);
           }
-          
+
           const studentData = {
-            atcCode: certificateNumber.trim(),
-            studentNameCombined: studentNameCombined,
+            centerName: '',
+            studentNameCombined,
             courseName: courseName.trim(),
             grade: grade.trim(),
             courseDuration: courseDuration.trim(),
-            coursePeriodFrom: coursePeriodFrom,
-            coursePeriodTo: coursePeriodTo,
+            coursePeriodFrom,
+            coursePeriodTo,
             certificateNumber: certificateNumber.trim(),
             dateOfIssue: issueDate,
-            photo: studentPhoto
+            photo: studentPhoto,
           };
-          certificateImage = await certificateGenerator.getDataURL(studentData);
+          // Low quality for DB preview only — download re-renders at full quality
+          certificateImage = await certificateGenerator.getDataURL(studentData, 0.4);
         } catch (imgErr) {
           console.warn('Could not generate certificate image:', imgErr);
         }
@@ -253,8 +200,8 @@ function CertificateModal({ show, onClose, onSaved, initial }) {
         sessionTo: parseInt(sessionTo),
         grade: grade.trim(),
         courseDuration: courseDuration.trim(),
-        coursePeriodFrom: coursePeriodFrom,
-        coursePeriodTo: coursePeriodTo,
+        coursePeriodFrom,
+        coursePeriodTo,
         enrollmentNumber: enrollmentNumber.trim(),
         certificateNumber: certificateNumber.trim(),
         issueDate,
@@ -279,163 +226,79 @@ function CertificateModal({ show, onClose, onSaved, initial }) {
   };
 
   return (
-    <div
-      className="modal d-block"
-      tabIndex="-1"
-      role="dialog"
-      style={{ backgroundColor: 'rgba(0,0,0,0.4)' }}
-    >
+    <div className="modal d-block" tabIndex="-1" role="dialog" style={{ backgroundColor: 'rgba(0,0,0,0.4)' }}>
       <div className="modal-dialog modal-lg" role="document">
         <div className="modal-content">
           <form onSubmit={handleSubmit}>
             <div className="modal-header">
-              <h5 className="modal-title">
-                {initial ? 'Edit Certificate' : 'Create Certificate'}
-              </h5>
-              <button
-                type="button"
-                className="btn-close"
-                onClick={onClose}
-                disabled={saving}
-              />
+              <h5 className="modal-title">{initial ? 'Edit Certificate' : 'Create Certificate'}</h5>
+              <button type="button" className="btn-close" onClick={onClose} disabled={saving} />
             </div>
 
             <div className="modal-body">
-              {error && (
-                <div className="alert alert-danger" role="alert">
-                  {error}
-                </div>
-              )}
+              {error && <div className="alert alert-danger" role="alert">{error}</div>}
 
               <div className="row g-3">
                 <div className="col-md-6">
                   <label className="form-label">Name *</label>
-                  <input
-                    type="text"
-                    className="form-control"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    required
-                  />
+                  <input type="text" className="form-control" value={name} onChange={(e) => setName(e.target.value)} required />
                 </div>
-
                 <div className="col-md-6">
                   <label className="form-label">Father's Name *</label>
-                  <input
-                    type="text"
-                    className="form-control"
-                    value={fatherName}
-                    onChange={(e) => setFatherName(e.target.value)}
-                    required
-                  />
+                  <input type="text" className="form-control" value={fatherName} onChange={(e) => setFatherName(e.target.value)} required />
                 </div>
-
                 <div className="col-md-6">
                   <label className="form-label">Course Name *</label>
-                  <input
-                    type="text"
-                    className="form-control"
-                    value={courseName}
-                    onChange={(e) => setCourseName(e.target.value)}
-                    required
-                  />
+                  <input type="text" className="form-control" value={courseName} onChange={(e) => setCourseName(e.target.value)} required />
                 </div>
-
                 <div className="col-md-3">
                   <label className="form-label">Session From *</label>
-                  <select
-                    className="form-select"
-                    value={sessionFrom}
-                    onChange={(e) => setSessionFrom(e.target.value)}
-                    required
-                  >
+                  <select className="form-select" value={sessionFrom} onChange={(e) => setSessionFrom(e.target.value)} required>
                     <option value="">Select Year</option>
-                    {years.map((year) => (
-                      <option key={year} value={year}>
-                        {year}
-                      </option>
-                    ))}
+                    {years.map((year) => <option key={year} value={year}>{year}</option>)}
                   </select>
                 </div>
-
                 <div className="col-md-3">
                   <label className="form-label">Session To *</label>
-                  <select
-                    className="form-select"
-                    value={sessionTo}
-                    onChange={(e) => setSessionTo(e.target.value)}
-                    required
-                  >
+                  <select className="form-select" value={sessionTo} onChange={(e) => setSessionTo(e.target.value)} required>
                     <option value="">Select Year</option>
-                    {years.map((year) => (
-                      <option key={year} value={year}>
-                        {year}
-                      </option>
-                    ))}
+                    {years.map((year) => <option key={year} value={year}>{year}</option>)}
                   </select>
                 </div>
-
                 <div className="col-md-6">
                   <label className="form-label">Grade *</label>
-                  <input
-                    type="text"
-                    className="form-control"
-                    value={grade}
-                    onChange={(e) => setGrade(e.target.value)}
-                    placeholder="e.g., A, A+, First Division"
-                    required
-                  />
+                  <input type="text" className="form-control" value={grade} onChange={(e) => setGrade(e.target.value)} placeholder="e.g., A, A+, First Division" required />
                 </div>
-
+                <div className="col-md-6">
+                  <label className="form-label">Course Duration *</label>
+                  <input type="text" className="form-control" value={courseDuration} onChange={(e) => setCourseDuration(e.target.value)} required />
+                </div>
+                <div className="col-md-6">
+                  <label className="form-label">Course Period From *</label>
+                  <input type="date" className="form-control" value={coursePeriodFrom} onChange={(e) => setCoursePeriodFrom(e.target.value)} required />
+                </div>
+                <div className="col-md-6">
+                  <label className="form-label">Course Period To *</label>
+                  <input type="date" className="form-control" value={coursePeriodTo} onChange={(e) => setCoursePeriodTo(e.target.value)} required />
+                </div>
                 <div className="col-md-6">
                   <label className="form-label">Enrollment Number *</label>
-                  <input
-                    type="text"
-                    className="form-control"
-                    value={enrollmentNumber}
-                    onChange={(e) => setEnrollmentNumber(e.target.value)}
-                    required
-                  />
+                  <input type="text" className="form-control" value={enrollmentNumber} onChange={(e) => setEnrollmentNumber(e.target.value)} required />
                 </div>
-
                 <div className="col-md-6">
                   <label className="form-label">Certificate Number *</label>
-                  <input
-                    type="text"
-                    className="form-control"
-                    value={certificateNumber}
-                    onChange={(e) => setCertificateNumber(e.target.value)}
-                    required
-                  />
+                  <input type="text" className="form-control" value={certificateNumber} onChange={(e) => setCertificateNumber(e.target.value)} required />
                 </div>
-
                 <div className="col-md-6">
                   <label className="form-label">Issue Date *</label>
-                  <input
-                    type="date"
-                    className="form-control"
-                    value={issueDate}
-                    onChange={(e) => setIssueDate(e.target.value)}
-                    required
-                  />
+                  <input type="date" className="form-control" value={issueDate} onChange={(e) => setIssueDate(e.target.value)} required />
                 </div>
               </div>
             </div>
 
             <div className="modal-footer">
-              <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={onClose}
-                disabled={saving}
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="btn btn-primary"
-                disabled={saving}
-              >
+              <button type="button" className="btn btn-secondary" onClick={onClose} disabled={saving}>Cancel</button>
+              <button type="submit" className="btn btn-primary" disabled={saving}>
                 {saving ? 'Saving…' : 'Save Changes'}
               </button>
             </div>
@@ -446,12 +309,17 @@ function CertificateModal({ show, onClose, onSaved, initial }) {
   );
 }
 
-// Certificate View Modal for printing
+// ─────────────────────────────────────────────────────────────────────────────
+// CertificateViewModal
+// KEY FIX: handleDownload now re-renders the certificate via CertificateGenerator
+// instead of re-compressing the low-quality DB preview image.
+// ─────────────────────────────────────────────────────────────────────────────
 function CertificateViewModal({ show, onClose, certificate }) {
+  const [downloading, setDownloading] = useState(false);
+
   if (!show || !certificate) return null;
 
   const handlePrint = () => {
-    // If we have a certificate image, open it in new window for printing
     if (certificate.certificateImage) {
       const printWindow = window.open('', '_blank');
       printWindow.document.write(`
@@ -462,163 +330,12 @@ function CertificateViewModal({ show, onClose, certificate }) {
               * { margin: 0; padding: 0; box-sizing: border-box; }
               body { margin: 0; padding: 0; }
               img { max-width: 100%; height: auto; }
-              @media print {
-                body { margin: 0; }
-              }
+              @media print { body { margin: 0; } }
             </style>
           </head>
           <body>
             <img src="${certificate.certificateImage}" />
-            <script>
-              window.onload = function() {
-                window.print();
-              };
-            </script>
-          </body>
-        </html>
-      `);
-      printWindow.document.close();
-    } else {
-      // Fallback to original HTML certificate
-      const printWindow = window.open('', '_blank');
-      printWindow.document.write(`
-        <html>
-          <head>
-            <title>Certificate - ${certificate.certificateNumber}</title>
-            <style>
-              * { margin: 0; padding: 0; box-sizing: border-box; }
-              body { font-family: 'Times New Roman', serif; padding: 20px; }
-              .certificate {
-                border: 5px double #1a365d;
-                padding: 40px;
-                max-width: 800px;
-                margin: 0 auto;
-                text-align: center;
-                background: #fff;
-              }
-              .certificate h1 {
-                font-size: 32px;
-                color: #1a365d;
-                margin-bottom: 10px;
-                text-transform: uppercase;
-              }
-              .certificate h2 {
-                font-size: 24px;
-                color: #2d3748;
-                margin: 20px 0;
-                font-weight: normal;
-              }
-              .certificate .subtitle {
-                font-size: 18px;
-                color: #4a5568;
-                margin-bottom: 30px;
-              }
-              .certificate .content {
-                font-size: 16px;
-                line-height: 2;
-                color: #2d3748;
-              }
-              .certificate .name {
-                font-size: 28px;
-                font-weight: bold;
-                color: #1a365d;
-                margin: 20px 0;
-                text-decoration: underline;
-              }
-              .certificate .details {
-                margin: 30px 0;
-              }
-              .certificate .details table {
-                width: 100%;
-                border-collapse: collapse;
-              }
-              .certificate .details td {
-                padding: 8px;
-                text-align: left;
-              }
-              .certificate .details td:first-child {
-                font-weight: bold;
-                width: 40%;
-              }
-              .certificate .footer {
-                margin-top: 40px;
-                display: flex;
-                justify-content: space-between;
-              }
-              .certificate .signature {
-                text-align: center;
-                width: 200px;
-              }
-              .certificate .signature-line {
-                border-top: 1px solid #000;
-                margin-top: 50px;
-                padding-top: 5px;
-              }
-              @media print {
-                body { padding: 0; }
-                .certificate { border: none; }
-              }
-            </style>
-          </head>
-          <body>
-            <div id="certificate-print">
-              <div class="certificate">
-                <h1>Certificate of Completion</h1>
-                <div class="subtitle">This is to certify that</div>
-                
-                <div class="name">${certificate.name}</div>
-                
-                <div class="content">
-                  Son/Daughter of <strong>${certificate.fatherName}</strong>
-                  <br /><br />
-                  has successfully completed the course
-                </div>
-                
-                <h2>${certificate.courseName}</h2>
-                
-                <div class="details">
-                  <table>
-                    <tbody>
-                      <tr>
-                        <td>Session:</td>
-                        <td>${certificate.sessionFrom} - ${certificate.sessionTo}</td>
-                      </tr>
-                      <tr>
-                        <td>Grade:</td>
-                        <td>${certificate.grade}</td>
-                      </tr>
-                      <tr>
-                        <td>Enrollment Number:</td>
-                        <td>${certificate.enrollmentNumber}</td>
-                      </tr>
-                      <tr>
-                        <td>Certificate Number:</td>
-                        <td>${certificate.certificateNumber}</td>
-                      </tr>
-                      <tr>
-                        <td>Issue Date:</td>
-                        <td>${fmtDate(certificate.issueDate)}</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-                
-                <div class="footer">
-                  <div class="signature">
-                    <div class="signature-line">Director</div>
-                  </div>
-                  <div class="signature">
-                    <div class="signature-line">Principal</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <script>
-              window.onload = function() {
-                window.print();
-                window.close();
-              };
-            </script>
+            <script>window.onload = function() { window.print(); };</script>
           </body>
         </html>
       `);
@@ -626,109 +343,95 @@ function CertificateViewModal({ show, onClose, certificate }) {
     }
   };
 
-  const handleDownload = () => {
-    if (certificate.certificateImage) {
-      // Load jsPDF if not already loaded
-      if (!window.jspdf) {
-        const script = document.createElement('script');
-        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
-        script.onload = () => downloadAsPDF();
-        document.body.appendChild(script);
-      } else {
-        downloadAsPDF();
-      }
-    } else {
-      alert('No certificate image available to download');
-    }
-  };
-
-  const downloadAsPDF = async () => {
+  const handleDownload = async () => {
+    setDownloading(true);
     try {
-      if (!certificate.certificateImage) {
-        alert('Certificate image not available.');
+      await initCertificateGenerator();
+
+      if (!certificateGenerator) {
+        alert('Certificate generator not available. Please refresh the page.');
         return;
       }
-      
-      const { jsPDF } = window.jspdf;
-      const PAGE_W_MM = 210;
-      const PAGE_H_MM = 297;
-      
-      const img = new Image();
-      img.onload = () => {
-        const tmpCanvas = document.createElement('canvas');
-        const MAX_PX = 2500;
-        let w = img.width, h = img.height;
-        if (w > MAX_PX || h > MAX_PX) {
-          const ratio = Math.min(MAX_PX / w, MAX_PX / h);
-          w = Math.round(w * ratio);
-          h = Math.round(h * ratio);
+
+      // The certificate record does not store the photo — it only has
+      // enrollmentNumber. Fetch the matching student to get their photo.
+      let studentPhoto = '';
+      try {
+        const res = await API.get('/students');
+        const allStudents = Array.isArray(res.data)
+          ? res.data
+          : Array.isArray(res.data?.data) ? res.data.data : [];
+        const student = allStudents.find(s =>
+          (s.enrollmentNumber || s.rollNumber || '').toLowerCase() ===
+          (certificate.enrollmentNumber || '').toLowerCase()
+        );
+        if (student?.photo) {
+          studentPhoto = student.photo;
+          console.log('Student photo found for:', certificate.enrollmentNumber);
+        } else {
+          console.warn('No photo found for enrollment:', certificate.enrollmentNumber);
         }
-        tmpCanvas.width = w;
-        tmpCanvas.height = h;
-        const ctx = tmpCanvas.getContext('2d');
-        ctx.imageSmoothingEnabled = true;
-        ctx.imageSmoothingQuality = 'high';
-        ctx.drawImage(img, 0, 0, w, h);
-        
-        const imgData = tmpCanvas.toDataURL('image/jpeg', 0.95);
-        
-        const pdf = new jsPDF({
-          orientation: 'portrait',
-          unit: 'mm',
-          format: 'a4',
-        });
-        
-        pdf.addImage(imgData, 'JPEG', 0, 0, PAGE_W_MM, PAGE_H_MM);
-        pdf.save(`certificate_${certificate.certificateNumber}.pdf`);
+      } catch (lookupErr) {
+        console.warn('Could not fetch student photo:', lookupErr);
+      }
+
+      const studentData = {
+        ...buildStudentData(certificate),
+        photo: studentPhoto,
       };
-      img.onerror = () => {
-        alert('Failed to load certificate image.');
-      };
-      img.src = certificate.certificateImage;
+      console.log('Downloading PDF for:', studentData.studentNameCombined, '| photo:', !!studentPhoto);
+
+      await certificateGenerator.download(studentData);
+
     } catch (err) {
-      console.error('Error creating PDF:', err);
-      alert('Failed to create PDF: ' + err.message);
+      console.error('Download error:', err);
+      alert('Failed to download certificate: ' + err.message);
+    } finally {
+      setDownloading(false);
     }
   };
 
   return (
-    <div
-      className="modal d-block"
-      tabIndex="-1"
-      role="dialog"
-      style={{ backgroundColor: 'rgba(0,0,0,0.4)' }}
-    >
+    <div className="modal d-block" tabIndex="-1" role="dialog" style={{ backgroundColor: 'rgba(0,0,0,0.4)' }}>
       <div className="modal-dialog modal-xl" role="document" style={{ maxWidth: '90%' }}>
         <div className="modal-content">
           <div className="modal-header">
             <h5 className="modal-title">View Certificate - {certificate.certificateNumber}</h5>
-            <button
-              type="button"
-              className="btn-close"
-              onClick={onClose}
-            />
+            <button type="button" className="btn-close" onClick={onClose} />
           </div>
+
           <div className="modal-body">
             <div className="text-center mb-3">
               <button className="btn btn-primary me-2" onClick={handlePrint}>
                 Print Certificate
               </button>
-              {certificate.certificateImage && (
-                <button className="btn btn-success" onClick={handleDownload}>
-                  Download Certificate
-                </button>
-              )}
+              <button
+                className="btn btn-success"
+                onClick={handleDownload}
+                disabled={downloading}
+              >
+                {downloading ? (
+                  <>
+                    <span className="spinner-border spinner-border-sm me-2" role="status" />
+                    Generating PDF…
+                  </>
+                ) : (
+                  'Download Certificate'
+                )}
+              </button>
             </div>
+
+            {/* Preview uses the stored low-res DB image — fine for on-screen viewing */}
             {certificate.certificateImage ? (
               <div className="text-center">
-                <img 
-                  src={certificate.certificateImage} 
-                  alt="Certificate" 
+                <img
+                  src={certificate.certificateImage}
+                  alt="Certificate"
                   style={{ maxWidth: '100%', height: 'auto', border: '1px solid #ccc' }}
                 />
               </div>
             ) : (
-              <div id="certificate-print" className="certificate-preview p-4 border">
+              <div className="p-4 border">
                 <div className="text-center">
                   <h5 className="text-uppercase fw-bold">Certificate of Completion</h5>
                   <p className="text-muted">This is to certify that</p>
@@ -751,10 +454,9 @@ function CertificateViewModal({ show, onClose, certificate }) {
               </div>
             )}
           </div>
+
           <div className="modal-footer">
-            <button type="button" className="btn btn-secondary" onClick={onClose}>
-              Close
-            </button>
+            <button type="button" className="btn btn-secondary" onClick={onClose}>Close</button>
           </div>
         </div>
       </div>
@@ -777,11 +479,7 @@ export default function CertificateList() {
     setMsg('');
     try {
       const data = await API.unwrap(API.get('/certificates'));
-      const arr = Array.isArray(data)
-        ? data
-        : Array.isArray(data?.data)
-        ? data.data
-        : [];
+      const arr = Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : [];
       setCerts(arr);
     } catch (err) {
       console.error('fetch certificates', err);
@@ -791,9 +489,7 @@ export default function CertificateList() {
     }
   };
 
-  useEffect(() => {
-    loadAll();
-  }, []);
+  useEffect(() => { loadAll(); }, []);
 
   const filteredCerts = useMemo(() => {
     if (!search.trim()) return certs;
@@ -818,7 +514,6 @@ export default function CertificateList() {
     }
   };
 
-
   const handleView = (cert) => {
     setViewingCert(cert);
     setShowViewModal(true);
@@ -830,17 +525,13 @@ export default function CertificateList() {
       loadAll();
       return;
     }
-
     setCerts((prev) => {
-      const idx = prev.findIndex(
-        (c) => (c._id || c.id) === (saved._id || saved.id)
-      );
+      const idx = prev.findIndex((c) => (c._id || c.id) === (saved._id || saved.id));
       if (idx === -1) return [saved, ...prev];
       const copy = [...prev];
       copy[idx] = saved;
       return copy;
     });
-
     setShowModal(false);
   };
 
@@ -851,9 +542,7 @@ export default function CertificateList() {
           <div className="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
             <div>
               <h2 className="mb-0">Student Certificates</h2>
-              <div className="small text-muted">
-                View, search, edit and delete certificates
-              </div>
+              <div className="small text-muted">View, search, edit and delete certificates</div>
             </div>
             <div className="d-flex gap-2">
               <input
@@ -864,11 +553,7 @@ export default function CertificateList() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
-              <button
-                className="btn btn-outline-secondary"
-                onClick={loadAll}
-                disabled={loading}
-              >
+              <button className="btn btn-outline-secondary" onClick={loadAll} disabled={loading}>
                 {loading ? 'Refreshing…' : 'Refresh'}
               </button>
             </div>
@@ -879,13 +564,9 @@ export default function CertificateList() {
           <div className="card shadow-sm">
             <div className="card-body p-0">
               {loading ? (
-                <div className="p-4 text-center text-muted">
-                  Loading certificates…
-                </div>
+                <div className="p-4 text-center text-muted">Loading certificates…</div>
               ) : filteredCerts.length === 0 ? (
-                <div className="p-4 text-center text-muted">
-                  No certificates found.
-                </div>
+                <div className="p-4 text-center text-muted">No certificates found.</div>
               ) : (
                 <div className="table-responsive">
                   <table className="table table-hover align-middle mb-0">
@@ -914,18 +595,10 @@ export default function CertificateList() {
                           <td>{fmtDate(c.issueDate)}</td>
                           <td>{fmtDate(c.renewalDate)}</td>
                           <td className="text-center">
-                            <button
-                              className="btn btn-sm btn-outline-success me-2"
-                              onClick={() => handleView(c)}
-                            >
+                            <button className="btn btn-sm btn-outline-success me-2" onClick={() => handleView(c)}>
                               View
                             </button>
-                            <button
-                              className="btn btn-sm btn-outline-danger"
-                              onClick={() =>
-                                handleDelete(c._id || c.id)
-                              }
-                            >
+                            <button className="btn btn-sm btn-outline-danger" onClick={() => handleDelete(c._id || c.id)}>
                               Delete
                             </button>
                           </td>
@@ -942,20 +615,14 @@ export default function CertificateList() {
 
       <CertificateModal
         show={showModal}
-        onClose={() => {
-          setShowModal(false);
-          setEditing(null);
-        }}
+        onClose={() => { setShowModal(false); setEditing(null); }}
         onSaved={handleSaved}
         initial={editing}
       />
 
       <CertificateViewModal
         show={showViewModal}
-        onClose={() => {
-          setShowViewModal(false);
-          setViewingCert(null);
-        }}
+        onClose={() => { setShowViewModal(false); setViewingCert(null); }}
         certificate={viewingCert}
       />
 
