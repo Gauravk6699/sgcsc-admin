@@ -26,7 +26,7 @@
       enrollmentNo:   { x: 51,   y: 63,   font: '80px serif',  color: '#000000', align: 'left'   },
       dateOfBirth:    { x: 51,   y: 66.7, font: '80px serif',  color: '#000000', align: 'left'   },
       contactNo:      { x: 51,   y: 71,   font: '80px serif',  color: '#000000', align: 'left'   },
-      address:        { x: 51,   y: 74,   font: '80px serif',  color: '#000000', align: 'left', maxWidth: 35, lineHeight: 2.0 },
+      address: { x: 51, y: 74, font: '80px serif', color: '#000000', align: 'left', maxWidth: 48, lineHeight: 5.0 },
       mobileNo:       { x: 51,   y: 82.5, font: '80px serif',  color: '#000000', align: 'left'   },
       centerMobileNo: { x: 51,   y: 85.8, font: '80px serif',  color: '#000000', align: 'left'   },
     }
@@ -81,19 +81,25 @@
     _ctx.font      = field.font;
     _ctx.fillStyle = field.color;
     _ctx.textAlign = field.align || 'left';
+
     const words = text.split(' ');
-    let line = '', currentY = y;
+    let line = '', currentY = y, lineCount = 0;
+    const MAX_LINES = 2;
+
     for (let i = 0; i < words.length; i++) {
       const testLine = line + words[i] + ' ';
       if (_ctx.measureText(testLine).width > maxWidth && i > 0) {
-        _ctx.fillText(line, x, currentY);
+        _ctx.fillText(line.trim(), x, currentY);
+        lineCount++;
+        if (lineCount >= MAX_LINES) break;   // hard stop at 2 lines
         line = words[i] + ' ';
         currentY += lineHeight;
       } else {
         line = testLine;
       }
     }
-    _ctx.fillText(line, x, currentY);
+    if (lineCount < MAX_LINES) _ctx.fillText(line.trim(), x, currentY);
+
     _ctx.restore();
   }
 
