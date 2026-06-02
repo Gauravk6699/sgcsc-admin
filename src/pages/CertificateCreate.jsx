@@ -544,11 +544,12 @@ export default function CertificateCreate() {
         certificateNumber: certificateNumber.trim(),
         issueDate,
         centerName: centerName || "SGCSC Training Center",
+        atcName: atcName || centerName || "SGCSC Training Center",
         photo: studentPhoto
       };
 
       const saved = await API.unwrap(API.post('/certificates', payload));
-      
+
       if (saved && certificateGenerator) {
         try {
           // Set the verification URL to backend
@@ -556,6 +557,7 @@ export default function CertificateCreate() {
           
           const studentData = {
             centerName: payload.centerName,
+            atcName: payload.atcName,
             studentNameCombined: studentNameCombined,
             courseName: payload.courseName,
             grade: payload.grade,

@@ -11,6 +11,7 @@ var CertificateGenerator = (() => {
     fields: {
       photo:                { x: 41.5, y: 30.7, width: 16,   height: 13   },
       centerName:           { x: 18,   y: 52.7, font: '160px serif', color: '#000000', align: 'left'   },
+      atcName:            { x: 18,   y: 60, font: '160px serif', color: '#000000', align: 'left'   },
       studentNameCombined:  { x: 50,   y: 49,   font: '160px serif', color: '#000000', align: 'center' },
       courseName:           { x: 50,   y: 58.5, font: '160px serif', color: '#000000', align: 'center' },
       grade:                { x: 56.5, y: 55.5, font: '160px serif', color: '#000000', align: 'left'   },
@@ -163,6 +164,7 @@ var CertificateGenerator = (() => {
 
     _drawQRCode(student.certificateNumber);
     _drawField(CONFIG.fields.centerName,          student.centerName);
+    _drawField(CONFIG.fields.atcName,             student.atcName);
     _drawField(CONFIG.fields.studentNameCombined, student.studentNameCombined);
     _drawField(CONFIG.fields.courseName,          student.courseName);
     _drawField(CONFIG.fields.grade,               student.grade);
@@ -219,7 +221,7 @@ var CertificateGenerator = (() => {
       if (typeof window !== 'undefined' && window.StudentDB) {
         const f = window.StudentDB.find(s);
         if (f) return {
-          centerName: f.centerName||f.center||'', studentNameCombined: f.studentName||f.applicantName||'',
+          centerName: f.centerName||f.center||'', atcName: f.atcName||f.centerName||'', studentNameCombined: f.studentName||f.applicantName||'',
           courseName: f.courseName||'', grade: f.grade||'', courseDuration: f.courseDuration||'',
           coursePeriodFrom: f.coursePeriodFrom||'', coursePeriodTo: f.coursePeriodTo||'',
           certificateNumber: f.certificateNumber||'', dateOfIssue: f.dateOfIssue||'', photo: f.photo||''

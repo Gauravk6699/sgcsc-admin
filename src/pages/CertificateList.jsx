@@ -62,6 +62,7 @@ const initCertificateGenerator = async () => {
 // ─────────────────────────────────────────────────────────────────────────────
 const buildStudentData = (certificate) => ({
   centerName:           certificate.centerName || '',
+  atcName:              certificate.atcName || certificate.centerName || '',
   studentNameCombined:  certificate.fatherName
                           ? `${certificate.name} S/O, D/O, W/O ${certificate.fatherName}`
                           : (certificate.name || ''),
@@ -95,6 +96,8 @@ function CertificateModal({ show, onClose, onSaved, initial }) {
   const [enrollmentNumber, setEnrollmentNumber] = useState('');
   const [certificateNumber, setCertificateNumber] = useState('');
   const [issueDate, setIssueDate] = useState('');
+  const [centerName, setCenterName] = useState('');
+  const [atcName, setAtcName] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -119,11 +122,14 @@ function CertificateModal({ show, onClose, onSaved, initial }) {
       setEnrollmentNumber(initial.enrollmentNumber || '');
       setCertificateNumber(initial.certificateNumber || '');
       setIssueDate(initial.issueDate ? new Date(initial.issueDate).toISOString().slice(0, 10) : '');
+      setCenterName(initial.centerName || '');
+      setAtcName(initial.atcName || '');
     } else {
       setName(''); setFatherName(''); setCourseName('');
       setSessionFrom(''); setSessionTo(''); setGrade('');
       setCourseDuration(''); setCoursePeriodFrom(''); setCoursePeriodTo('');
       setEnrollmentNumber(''); setCertificateNumber(''); setIssueDate('');
+      setCenterName(''); setAtcName('');
     }
   }, [show, initial]);
 
@@ -173,18 +179,19 @@ function CertificateModal({ show, onClose, onSaved, initial }) {
             console.warn('Could not lookup student photo:', lookupErr);
           }
 
-          const studentData = {
-            centerName: '',
-            studentNameCombined,
-            courseName: courseName.trim(),
-            grade: grade.trim(),
-            courseDuration: courseDuration.trim(),
-            coursePeriodFrom,
-            coursePeriodTo,
-            certificateNumber: certificateNumber.trim(),
-            dateOfIssue: issueDate,
-            photo: studentPhoto,
-          };
+const studentData = {
+             centerName: '',
+             atcName: atcName || '',
+             studentNameCombined,
+             courseName: courseName.trim(),
+             grade: grade.trim(),
+             courseDuration: courseDuration.trim(),
+             coursePeriodFrom,
+             coursePeriodTo,
+             certificateNumber: certificateNumber.trim(),
+             dateOfIssue: issueDate,
+             photo: studentPhoto,
+           };
           // Low quality for DB preview only — download re-renders at full quality
           certificateImage = await certificateGenerator.getDataURL(studentData, 0.4);
         } catch (imgErr) {
@@ -205,6 +212,8 @@ function CertificateModal({ show, onClose, onSaved, initial }) {
         enrollmentNumber: enrollmentNumber.trim(),
         certificateNumber: certificateNumber.trim(),
         issueDate,
+        centerName: centerName || '',
+        atcName: atcName || '',
         certificateImage,
       };
 
@@ -269,11 +278,19 @@ function CertificateModal({ show, onClose, onSaved, initial }) {
                   <label className="form-label">Grade *</label>
                   <input type="text" className="form-control" value={grade} onChange={(e) => setGrade(e.target.value)} placeholder="e.g., A, A+, First Division" required />
                 </div>
-                <div className="col-md-6">
-                  <label className="form-label">Course Duration *</label>
-                  <input type="text" className="form-control" value={courseDuration} onChange={(e) => setCourseDuration(e.target.value)} required />
-                </div>
-                <div className="col-md-6">
+<div className="col-md-6">
+                   <label className="form-label">Course Duration *</label>
+                   <input type="text" className="form-control" value={courseDuration} onChange={(e) => setCourseDuration(e.target.value)} required />
+                 </div>
+                 <div className="col-md-6">
+                   <label className="form-label">Center Name</label>
+                   <input type="text" className="form-control" value={centerName} onChange={(e) => setCenterName(e.target.value)} placeholder="Center Name" />
+                 </div>
+                 <div className="col-md-6">
+                   <label className="form-label">ATC Name</label>
+                   <input type="text" className="form-control" value={atcName} onChange={(e) => setAtcName(e.target.value)} placeholder="ATC Name" />
+                 </div>
+                 <div className="col-md-6">
                   <label className="form-label">Course Period From *</label>
                   <input type="date" className="form-control" value={coursePeriodFrom} onChange={(e) => setCoursePeriodFrom(e.target.value)} required />
                 </div>
@@ -449,6 +466,8 @@ function CertificateViewModal({ show, onClose, certificate }) {
                     <p><strong>Enrollment No:</strong> {certificate.enrollmentNumber}</p>
                     <p><strong>Certificate No:</strong> {certificate.certificateNumber}</p>
                     <p><strong>Issue Date:</strong> {fmtDate(certificate.issueDate)}</p>
+                    <p><strong>Center:</strong> {certificate.centerName}</p>
+                    <p><strong>ATC:</strong> {certificate.atcName}</p>
                   </div>
                 </div>
               </div>
