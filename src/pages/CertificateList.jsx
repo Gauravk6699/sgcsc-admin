@@ -144,7 +144,7 @@ function CertificateModal({ show, onClose, onSaved, initial }) {
     } : {
       name:'', fatherName:'', courseName:'', sessionFrom:'', sessionTo:'',
       grade:'', courseDuration:'', coursePeriodFrom:'', coursePeriodTo:'',
-      enrollmentNumber:'', certificateNumber:'', issueDate:'', centerName:''
+      enrollmentNumber:'', certificateNumber:'', issueDate:'', centerName:'Shree ganpati computer and study Centre'
     });
   }, [show, initial]);
 

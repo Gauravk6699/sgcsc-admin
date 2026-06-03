@@ -91,7 +91,7 @@ export default function CertificateCreate() {
   const [certificateNumber, setCertificateNumber] = useState('');
   const [issueDate,         setIssueDate]         = useState('');
   // Single org field — replaces the old centerName + atcName pair
-  const [centerName,        setCenterName]        = useState('');
+  const [centerName,        setCenterName]        = useState('Shree ganpati computer and study Centre');
 
   // Supporting state
   const [allStudents,      setAllStudents]      = useState([]);
