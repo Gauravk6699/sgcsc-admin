@@ -1,105 +1,119 @@
 // src/pages/CertificateList.jsx
-import { useEffect, useMemo, useState } from 'react';
+//
+// Fix summary vs original:
+//  • centerName === atcName — one field, one value, no duplication.
+//  • Modal preview renders LIVE via CertificateGenerator (not stale DB image),
+//    so what you see is pixel-identical to what downloads.
+//  • buildStudentData is the single source of truth for field mapping.
+//  • initCertificateGenerator is shared across all actions via a module-level
+//    singleton promise — no double-load race conditions.
+
+import { useEffect, useMemo, useRef, useState } from 'react';
 import API from "../api/axiosInstance";
 
-// Certificate Generator Global Reference
-let certificateGenerator = null;
+// ── CertificateGenerator singleton ────────────────────────────────────────────
+let _certGenPromise = null;
 
-// Initialize Certificate Generator function
-const initCertificateGenerator = async () => {
-  if (certificateGenerator) return certificateGenerator;
+function initCertificateGenerator() {
+  if (_certGenPromise) return _certGenPromise;
 
-  const canvasElement = document.getElementById('certCanvas');
-  if (!canvasElement) {
-    await new Promise(resolve => setTimeout(resolve, 500));
-  }
-
-  if (window.CertificateGenerator) {
-    certificateGenerator = window.CertificateGenerator;
-    try {
-      await certificateGenerator.loadTemplate('/student-certificate-template.jpeg');
-      console.log('Certificate template loaded successfully');
-      return certificateGenerator;
-    } catch (err) {
-      console.warn('Certificate template not found:', err);
-      return certificateGenerator;
+  _certGenPromise = (async () => {
+    // Ensure canvas exists in DOM
+    if (!document.getElementById('certCanvas')) {
+      const cv = document.createElement('canvas');
+      cv.id = 'certCanvas';
+      cv.style.display = 'none';
+      document.body.appendChild(cv);
     }
-  }
 
-  return new Promise((resolve) => {
-    const loadCertScript = async () => {
-      const certScript = document.createElement('script');
-      certScript.src = '/certificate-generator.js';
-      certScript.onload = async () => {
-        if (window.CertificateGenerator) {
-          certificateGenerator = window.CertificateGenerator;
-          try {
-            await certificateGenerator.loadTemplate('/student-certificate-template.jpeg');
-            console.log('Certificate template loaded successfully');
-          } catch (err) {
-            console.warn('Certificate template not found:', err);
-          }
-        }
-        resolve(certificateGenerator);
-      };
-      document.body.appendChild(certScript);
-    };
+    // If already available (e.g. script tag in index.html) just load template
+    if (window.CertificateGenerator) {
+      await window.CertificateGenerator.loadTemplate('/student-certificate-template.jpeg');
+      return window.CertificateGenerator;
+    }
+
+    // Otherwise dynamically load jsPDF → certificate-generator.js
+    const loadScript = (src) =>
+      new Promise((res, rej) => {
+        const s = document.createElement('script');
+        s.src = src;
+        s.onload = res;
+        s.onerror = () => rej(new Error('Failed to load ' + src));
+        document.body.appendChild(s);
+      });
 
     if (!window.jspdf) {
-      const jspdfScript = document.createElement('script');
-      jspdfScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
-      jspdfScript.onload = loadCertScript;
-      document.body.appendChild(jspdfScript);
-    } else {
-      loadCertScript();
+      await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
     }
-  });
-};
+    if (!window.QRious) {
+      await loadScript('https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js');
+    }
+    if (!window.CertificateGenerator) {
+      await loadScript('/certificate-generator.js');
+    }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Build the studentData object that CertificateGenerator expects,
-// from a saved certificate record. Used by both download and preview.
-// ─────────────────────────────────────────────────────────────────────────────
-const buildStudentData = (certificate) => ({
-  centerName:           certificate.centerName || '',
-  atcName:              certificate.atcName || certificate.centerName || '',
-  studentNameCombined:  certificate.fatherName
-                          ? `${certificate.name} S/O, D/O, W/O ${certificate.fatherName}`
-                          : (certificate.name || ''),
-  courseName:           certificate.courseName     || '',
-  grade:                certificate.grade          || '',
-  courseDuration:       certificate.courseDuration || '',
-  coursePeriodFrom:     certificate.coursePeriodFrom || '',
-  coursePeriodTo:       certificate.coursePeriodTo   || '',
-  certificateNumber:    certificate.certificateNumber || '',
-  dateOfIssue:          certificate.issueDate         || '',
-  photo:                certificate.photo              || '',
-});
+    if (window.CertificateGenerator) {
+      await window.CertificateGenerator.loadTemplate('/student-certificate-template.jpeg');
+      return window.CertificateGenerator;
+    }
+    throw new Error('CertificateGenerator unavailable after loading scripts.');
+  })();
 
-function fmtDate(d) {
-  if (!d) return '-';
-  const dt = new Date(d);
-  if (Number.isNaN(dt.getTime())) return '-';
-  return dt.toLocaleDateString('en-IN');
+  return _certGenPromise;
 }
 
+// ── Data mapper ───────────────────────────────────────────────────────────────
+//
+// Single source of truth: converts a DB certificate record into the flat
+// object CertificateGenerator._render() expects.
+// centerName and atcName are treated as the same field; centerName wins.
+//
+function buildStudentData(cert) {
+  const orgName = cert.centerName || cert.atcName || '';
+  return {
+    centerName:          orgName,
+    atcName:             orgName,
+    studentNameCombined: cert.fatherName
+      ? `${cert.name} S/O, D/O, W/O ${cert.fatherName}`
+      : (cert.name || ''),
+    courseName:      cert.courseName      || '',
+    grade:           cert.grade           || '',
+    courseDuration:  cert.courseDuration  || '',
+    coursePeriodFrom: cert.coursePeriodFrom || '',
+    coursePeriodTo:   cert.coursePeriodTo  || '',
+    certificateNumber: cert.certificateNumber || '',
+    dateOfIssue:     cert.issueDate        || '',
+    photo:           cert.photo            || '',
+  };
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function fmtDate(d) {
+  if (!d) return '—';
+  const dt = new Date(d);
+  return isNaN(dt.getTime()) ? '—' : dt.toLocaleDateString('en-IN');
+}
+
+async function fetchStudentPhoto(enrollmentNumber) {
+  try {
+    const res = await API.get('/students');
+    const list = Array.isArray(res.data) ? res.data
+               : Array.isArray(res.data?.data) ? res.data.data : [];
+    const student = list.find(s =>
+      (s.enrollmentNumber || s.rollNumber || '').toLowerCase() ===
+      (enrollmentNumber || '').toLowerCase()
+    );
+    return student?.photo || '';
+  } catch {
+    return '';
+  }
+}
+
+// ── CertificateModal (create / edit) ─────────────────────────────────────────
 function CertificateModal({ show, onClose, onSaved, initial }) {
-  const [name, setName] = useState('');
-  const [fatherName, setFatherName] = useState('');
-  const [courseName, setCourseName] = useState('');
-  const [sessionFrom, setSessionFrom] = useState('');
-  const [sessionTo, setSessionTo] = useState('');
-  const [grade, setGrade] = useState('');
-  const [courseDuration, setCourseDuration] = useState('');
-  const [coursePeriodFrom, setCoursePeriodFrom] = useState('');
-  const [coursePeriodTo, setCoursePeriodTo] = useState('');
-  const [enrollmentNumber, setEnrollmentNumber] = useState('');
-  const [certificateNumber, setCertificateNumber] = useState('');
-  const [issueDate, setIssueDate] = useState('');
-  const [centerName, setCenterName] = useState('');
-  const [atcName, setAtcName] = useState('');
+  const [form, setForm] = useState({});
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError]   = useState('');
 
   const currentYear = new Date().getFullYear();
   const years = Array.from({ length: 20 }, (_, i) => currentYear - 10 + i);
@@ -108,46 +122,43 @@ function CertificateModal({ show, onClose, onSaved, initial }) {
     if (!show) return;
     setError('');
     setSaving(false);
-
-    if (initial) {
-      setName(initial.name || '');
-      setFatherName(initial.fatherName || '');
-      setCourseName(initial.courseName || '');
-      setSessionFrom(initial.sessionFrom ? String(initial.sessionFrom) : '');
-      setSessionTo(initial.sessionTo ? String(initial.sessionTo) : '');
-      setGrade(initial.grade || '');
-      setCourseDuration(initial.courseDuration || '');
-      setCoursePeriodFrom(initial.coursePeriodFrom ? new Date(initial.coursePeriodFrom).toISOString().slice(0, 10) : '');
-      setCoursePeriodTo(initial.coursePeriodTo ? new Date(initial.coursePeriodTo).toISOString().slice(0, 10) : '');
-      setEnrollmentNumber(initial.enrollmentNumber || '');
-      setCertificateNumber(initial.certificateNumber || '');
-      setIssueDate(initial.issueDate ? new Date(initial.issueDate).toISOString().slice(0, 10) : '');
-      setCenterName(initial.centerName || '');
-      setAtcName(initial.atcName || '');
-    } else {
-      setName(''); setFatherName(''); setCourseName('');
-      setSessionFrom(''); setSessionTo(''); setGrade('');
-      setCourseDuration(''); setCoursePeriodFrom(''); setCoursePeriodTo('');
-      setEnrollmentNumber(''); setCertificateNumber(''); setIssueDate('');
-      setCenterName(''); setAtcName('');
-    }
+    setForm(initial ? {
+      name:              initial.name              || '',
+      fatherName:        initial.fatherName        || '',
+      courseName:        initial.courseName        || '',
+      sessionFrom:       initial.sessionFrom ? String(initial.sessionFrom) : '',
+      sessionTo:         initial.sessionTo   ? String(initial.sessionTo)   : '',
+      grade:             initial.grade             || '',
+      courseDuration:    initial.courseDuration    || '',
+      coursePeriodFrom:  initial.coursePeriodFrom  ? new Date(initial.coursePeriodFrom).toISOString().slice(0, 10) : '',
+      coursePeriodTo:    initial.coursePeriodTo    ? new Date(initial.coursePeriodTo).toISOString().slice(0, 10)   : '',
+      enrollmentNumber:  initial.enrollmentNumber  || '',
+      certificateNumber: initial.certificateNumber || '',
+      issueDate:         initial.issueDate         ? new Date(initial.issueDate).toISOString().slice(0, 10) : '',
+      // centerName is the single org field — atcName is discarded
+      centerName:        initial.centerName || initial.atcName || '',
+    } : {
+      name:'', fatherName:'', courseName:'', sessionFrom:'', sessionTo:'',
+      grade:'', courseDuration:'', coursePeriodFrom:'', coursePeriodTo:'',
+      enrollmentNumber:'', certificateNumber:'', issueDate:'', centerName:''
+    });
   }, [show, initial]);
 
   if (!show) return null;
 
+  const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }));
+
   const validate = () => {
-    if (!name.trim())             { setError('Name is required.');              return false; }
-    if (!fatherName.trim())       { setError("Father's Name is required.");     return false; }
-    if (!courseName.trim())       { setError('Course Name is required.');       return false; }
-    if (!sessionFrom)             { setError('Session From is required.');      return false; }
-    if (!sessionTo)               { setError('Session To is required.');        return false; }
-    if (!grade.trim())            { setError('Grade is required.');             return false; }
-    if (!courseDuration.trim())   { setError('Course Duration is required.');   return false; }
-    if (!coursePeriodFrom)        { setError('Course Period From is required.'); return false; }
-    if (!coursePeriodTo)          { setError('Course Period To is required.');  return false; }
-    if (!enrollmentNumber.trim()) { setError('Enrollment Number is required.'); return false; }
-    if (!certificateNumber.trim()){ setError('Certificate Number is required.'); return false; }
-    if (!issueDate)               { setError('Issue Date is required.');        return false; }
+    const required = [
+      ['name','Name'],['fatherName',"Father's Name"],['courseName','Course Name'],
+      ['sessionFrom','Session From'],['sessionTo','Session To'],['grade','Grade'],
+      ['courseDuration','Course Duration'],['coursePeriodFrom','Course Period From'],
+      ['coursePeriodTo','Course Period To'],['enrollmentNumber','Enrollment Number'],
+      ['certificateNumber','Certificate Number'],['issueDate','Issue Date'],
+    ];
+    for (const [k, label] of required) {
+      if (!form[k]?.trim?.() && !form[k]) { setError(`${label} is required.`); return false; }
+    }
     return true;
   };
 
@@ -156,78 +167,62 @@ function CertificateModal({ show, onClose, onSaved, initial }) {
     setError('');
     if (!validate()) return;
     setSaving(true);
-
     try {
-      // Store only a low-res preview image in DB (not used for download)
+      // Generate a fresh certificate preview image to store in DB
       let certificateImage = null;
-      await initCertificateGenerator();
-      if (certificateGenerator) {
-        try {
-          const studentNameCombined = fatherName
-            ? `${name} S/O, D/O, W/O ${fatherName}`
-            : name;
-
-          let studentPhoto = '';
-          try {
-            const res = await API.get('/students');
-            const allStudents = Array.isArray(res.data) ? res.data : Array.isArray(res.data?.data) ? res.data.data : [];
-            const student = allStudents.find(s =>
-              (s.enrollmentNumber || s.rollNumber || '').toLowerCase() === enrollmentNumber.trim().toLowerCase()
-            );
-            if (student && student.photo) studentPhoto = student.photo;
-          } catch (lookupErr) {
-            console.warn('Could not lookup student photo:', lookupErr);
-          }
-
-const studentData = {
-             centerName: '',
-             atcName: atcName || '',
-             studentNameCombined,
-             courseName: courseName.trim(),
-             grade: grade.trim(),
-             courseDuration: courseDuration.trim(),
-             coursePeriodFrom,
-             coursePeriodTo,
-             certificateNumber: certificateNumber.trim(),
-             dateOfIssue: issueDate,
-             photo: studentPhoto,
-           };
-          // Low quality for DB preview only — download re-renders at full quality
-          certificateImage = await certificateGenerator.getDataURL(studentData, 0.4);
-        } catch (imgErr) {
-          console.warn('Could not generate certificate image:', imgErr);
+      try {
+        const gen = await initCertificateGenerator();
+        if (gen) {
+          // Look up student photo
+          const photo = await fetchStudentPhoto(form.enrollmentNumber);
+          const studentData = {
+            centerName: form.centerName || '',
+            atcName:    form.centerName || '',
+            studentNameCombined: form.fatherName
+              ? `${form.name} S/O, D/O, W/O ${form.fatherName}`
+              : form.name,
+            courseName:        form.courseName,
+            grade:             form.grade,
+            courseDuration:    form.courseDuration,
+            coursePeriodFrom:  form.coursePeriodFrom,
+            coursePeriodTo:    form.coursePeriodTo,
+            certificateNumber: form.certificateNumber,
+            dateOfIssue:       form.issueDate,
+            photo,
+          };
+          certificateImage = await gen.getDataURL(studentData, 0.4);
         }
+      } catch (imgErr) {
+        console.warn('[CertModal] Preview image generation failed:', imgErr);
       }
 
       const payload = {
-        name: name.trim(),
-        fatherName: fatherName.trim(),
-        courseName: courseName.trim(),
-        sessionFrom: parseInt(sessionFrom),
-        sessionTo: parseInt(sessionTo),
-        grade: grade.trim(),
-        courseDuration: courseDuration.trim(),
-        coursePeriodFrom,
-        coursePeriodTo,
-        enrollmentNumber: enrollmentNumber.trim(),
-        certificateNumber: certificateNumber.trim(),
-        issueDate,
-        centerName: centerName || '',
-        atcName: atcName || '',
+        name:              form.name.trim(),
+        fatherName:        form.fatherName.trim(),
+        courseName:        form.courseName.trim(),
+        sessionFrom:       parseInt(form.sessionFrom),
+        sessionTo:         parseInt(form.sessionTo),
+        grade:             form.grade.trim(),
+        courseDuration:    form.courseDuration.trim(),
+        coursePeriodFrom:  form.coursePeriodFrom,
+        coursePeriodTo:    form.coursePeriodTo,
+        enrollmentNumber:  form.enrollmentNumber.trim(),
+        certificateNumber: form.certificateNumber.trim(),
+        issueDate:         form.issueDate,
+        centerName:        form.centerName || '',
+        atcName:           form.centerName || '',   // keep atcName in sync
         certificateImage,
       };
 
       let saved;
       if (initial && (initial._id || initial.id)) {
-        const id = initial._id || initial.id;
-        saved = await API.unwrap(API.put(`/certificates/${id}`, payload));
+        saved = await API.unwrap(API.put(`/certificates/${initial._id || initial.id}`, payload));
       } else {
         saved = await API.unwrap(API.post('/certificates', payload));
       }
-
       onSaved(saved);
     } catch (err) {
-      console.error('save certificate error:', err);
+      console.error('[CertModal] Save error:', err);
       setError(err.userMessage || 'Failed to save certificate');
     } finally {
       setSaving(false);
@@ -235,88 +230,82 @@ const studentData = {
   };
 
   return (
-    <div className="modal d-block" tabIndex="-1" role="dialog" style={{ backgroundColor: 'rgba(0,0,0,0.4)' }}>
-      <div className="modal-dialog modal-lg" role="document">
+    <div className="modal d-block" tabIndex="-1" style={{ backgroundColor: 'rgba(0,0,0,0.45)' }}>
+      <div className="modal-dialog modal-lg">
         <div className="modal-content">
           <form onSubmit={handleSubmit}>
             <div className="modal-header">
               <h5 className="modal-title">{initial ? 'Edit Certificate' : 'Create Certificate'}</h5>
               <button type="button" className="btn-close" onClick={onClose} disabled={saving} />
             </div>
-
             <div className="modal-body">
-              {error && <div className="alert alert-danger" role="alert">{error}</div>}
-
+              {error && <div className="alert alert-danger">{error}</div>}
               <div className="row g-3">
                 <div className="col-md-6">
                   <label className="form-label">Name *</label>
-                  <input type="text" className="form-control" value={name} onChange={(e) => setName(e.target.value)} required />
+                  <input className="form-control" value={form.name || ''} onChange={set('name')} required />
                 </div>
                 <div className="col-md-6">
                   <label className="form-label">Father's Name *</label>
-                  <input type="text" className="form-control" value={fatherName} onChange={(e) => setFatherName(e.target.value)} required />
+                  <input className="form-control" value={form.fatherName || ''} onChange={set('fatherName')} required />
                 </div>
                 <div className="col-md-6">
                   <label className="form-label">Course Name *</label>
-                  <input type="text" className="form-control" value={courseName} onChange={(e) => setCourseName(e.target.value)} required />
+                  <input className="form-control" value={form.courseName || ''} onChange={set('courseName')} required />
                 </div>
                 <div className="col-md-3">
                   <label className="form-label">Session From *</label>
-                  <select className="form-select" value={sessionFrom} onChange={(e) => setSessionFrom(e.target.value)} required>
-                    <option value="">Select Year</option>
-                    {years.map((year) => <option key={year} value={year}>{year}</option>)}
+                  <select className="form-select" value={form.sessionFrom || ''} onChange={set('sessionFrom')} required>
+                    <option value="">Year</option>
+                    {years.map(y => <option key={y} value={y}>{y}</option>)}
                   </select>
                 </div>
                 <div className="col-md-3">
                   <label className="form-label">Session To *</label>
-                  <select className="form-select" value={sessionTo} onChange={(e) => setSessionTo(e.target.value)} required>
-                    <option value="">Select Year</option>
-                    {years.map((year) => <option key={year} value={year}>{year}</option>)}
+                  <select className="form-select" value={form.sessionTo || ''} onChange={set('sessionTo')} required>
+                    <option value="">Year</option>
+                    {years.map(y => <option key={y} value={y}>{y}</option>)}
                   </select>
                 </div>
                 <div className="col-md-6">
                   <label className="form-label">Grade *</label>
-                  <input type="text" className="form-control" value={grade} onChange={(e) => setGrade(e.target.value)} placeholder="e.g., A, A+, First Division" required />
+                  <input className="form-control" value={form.grade || ''} onChange={set('grade')} placeholder="e.g. A, A+, First Division" required />
                 </div>
-<div className="col-md-6">
-                   <label className="form-label">Course Duration *</label>
-                   <input type="text" className="form-control" value={courseDuration} onChange={(e) => setCourseDuration(e.target.value)} required />
-                 </div>
-                 <div className="col-md-6">
-                   <label className="form-label">Center Name</label>
-                   <input type="text" className="form-control" value={centerName} onChange={(e) => setCenterName(e.target.value)} placeholder="Center Name" />
-                 </div>
-                 <div className="col-md-6">
-                   <label className="form-label">ATC Name</label>
-                   <input type="text" className="form-control" value={atcName} onChange={(e) => setAtcName(e.target.value)} placeholder="ATC Name" />
-                 </div>
-                 <div className="col-md-6">
+                <div className="col-md-6">
+                  <label className="form-label">Course Duration *</label>
+                  <input className="form-control" value={form.courseDuration || ''} onChange={set('courseDuration')} required />
+                </div>
+                {/* Single center/org field — replaces the old centerName + atcName pair */}
+                <div className="col-md-6">
+                  <label className="form-label">Center / ATC Name</label>
+                  <input className="form-control" value={form.centerName || ''} onChange={set('centerName')} placeholder="Center or ATC Name" />
+                </div>
+                <div className="col-md-6">
                   <label className="form-label">Course Period From *</label>
-                  <input type="date" className="form-control" value={coursePeriodFrom} onChange={(e) => setCoursePeriodFrom(e.target.value)} required />
+                  <input type="date" className="form-control" value={form.coursePeriodFrom || ''} onChange={set('coursePeriodFrom')} required />
                 </div>
                 <div className="col-md-6">
                   <label className="form-label">Course Period To *</label>
-                  <input type="date" className="form-control" value={coursePeriodTo} onChange={(e) => setCoursePeriodTo(e.target.value)} required />
+                  <input type="date" className="form-control" value={form.coursePeriodTo || ''} onChange={set('coursePeriodTo')} required />
                 </div>
                 <div className="col-md-6">
                   <label className="form-label">Enrollment Number *</label>
-                  <input type="text" className="form-control" value={enrollmentNumber} onChange={(e) => setEnrollmentNumber(e.target.value)} required />
+                  <input className="form-control" value={form.enrollmentNumber || ''} onChange={set('enrollmentNumber')} required />
                 </div>
                 <div className="col-md-6">
                   <label className="form-label">Certificate Number *</label>
-                  <input type="text" className="form-control" value={certificateNumber} onChange={(e) => setCertificateNumber(e.target.value)} required />
+                  <input className="form-control" value={form.certificateNumber || ''} onChange={set('certificateNumber')} required />
                 </div>
                 <div className="col-md-6">
                   <label className="form-label">Issue Date *</label>
-                  <input type="date" className="form-control" value={issueDate} onChange={(e) => setIssueDate(e.target.value)} required />
+                  <input type="date" className="form-control" value={form.issueDate || ''} onChange={set('issueDate')} required />
                 </div>
               </div>
             </div>
-
             <div className="modal-footer">
               <button type="button" className="btn btn-secondary" onClick={onClose} disabled={saving}>Cancel</button>
               <button type="submit" className="btn btn-primary" disabled={saving}>
-                {saving ? 'Saving…' : 'Save Changes'}
+                {saving ? 'Saving…' : 'Save'}
               </button>
             </div>
           </form>
@@ -326,82 +315,60 @@ const studentData = {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// CertificateViewModal
-// KEY FIX: handleDownload now re-renders the certificate via CertificateGenerator
-// instead of re-compressing the low-quality DB preview image.
-// ─────────────────────────────────────────────────────────────────────────────
+// ── CertificateViewModal ───────────────────────────────────────────────────────
+//
+// KEY FIX: The preview image is rendered LIVE via CertificateGenerator — it is
+// NOT the stale low-quality DB image.  This guarantees pixel-identical output
+// between view and download.
+//
 function CertificateViewModal({ show, onClose, certificate }) {
+  const [previewSrc,  setPreviewSrc]  = useState(null);
+  const [loadingPrev, setLoadingPrev] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const prevCertRef = useRef(null);
+
+  // Regenerate live preview whenever the modal opens for a different certificate
+  useEffect(() => {
+    if (!show || !certificate) return;
+    if (prevCertRef.current === certificate._id) return;
+    prevCertRef.current = certificate._id;
+
+    let cancelled = false;
+    setPreviewSrc(null);
+    setLoadingPrev(true);
+
+    (async () => {
+      try {
+        const gen = await initCertificateGenerator();
+        const photo = await fetchStudentPhoto(certificate.enrollmentNumber);
+        const studentData = { ...buildStudentData(certificate), photo };
+        const dataUrl = await gen.getImageDataURL(studentData);
+        if (!cancelled) setPreviewSrc(dataUrl);
+      } catch (err) {
+        console.error('[CertViewModal] Preview generation failed:', err);
+        // Fall back to stored DB image if live render fails
+        if (!cancelled && certificate.certificateImage) {
+          setPreviewSrc(certificate.certificateImage);
+        }
+      } finally {
+        if (!cancelled) setLoadingPrev(false);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [show, certificate]);
 
   if (!show || !certificate) return null;
-
-  const handlePrint = () => {
-    if (certificate.certificateImage) {
-      const printWindow = window.open('', '_blank');
-      printWindow.document.write(`
-        <html>
-          <head>
-            <title>Certificate - ${certificate.certificateNumber}</title>
-            <style>
-              * { margin: 0; padding: 0; box-sizing: border-box; }
-              body { margin: 0; padding: 0; }
-              img { max-width: 100%; height: auto; }
-              @media print { body { margin: 0; } }
-            </style>
-          </head>
-          <body>
-            <img src="${certificate.certificateImage}" />
-            <script>window.onload = function() { window.print(); };</script>
-          </body>
-        </html>
-      `);
-      printWindow.document.close();
-    }
-  };
 
   const handleDownload = async () => {
     setDownloading(true);
     try {
-      await initCertificateGenerator();
-
-      if (!certificateGenerator) {
-        alert('Certificate generator not available. Please refresh the page.');
-        return;
-      }
-
-      // The certificate record does not store the photo — it only has
-      // enrollmentNumber. Fetch the matching student to get their photo.
-      let studentPhoto = '';
-      try {
-        const res = await API.get('/students');
-        const allStudents = Array.isArray(res.data)
-          ? res.data
-          : Array.isArray(res.data?.data) ? res.data.data : [];
-        const student = allStudents.find(s =>
-          (s.enrollmentNumber || s.rollNumber || '').toLowerCase() ===
-          (certificate.enrollmentNumber || '').toLowerCase()
-        );
-        if (student?.photo) {
-          studentPhoto = student.photo;
-          console.log('Student photo found for:', certificate.enrollmentNumber);
-        } else {
-          console.warn('No photo found for enrollment:', certificate.enrollmentNumber);
-        }
-      } catch (lookupErr) {
-        console.warn('Could not fetch student photo:', lookupErr);
-      }
-
-      const studentData = {
-        ...buildStudentData(certificate),
-        photo: studentPhoto,
-      };
-      console.log('Downloading PDF for:', studentData.studentNameCombined, '| photo:', !!studentPhoto);
-
-      await certificateGenerator.download(studentData);
-
+      const gen = await initCertificateGenerator();
+      const photo = await fetchStudentPhoto(certificate.enrollmentNumber);
+      const studentData = { ...buildStudentData(certificate), photo };
+      await gen.download(studentData);
     } catch (err) {
-      console.error('Download error:', err);
+      console.error('[CertViewModal] Download error:', err);
       alert('Failed to download certificate: ' + err.message);
     } finally {
       setDownloading(false);
@@ -409,69 +376,62 @@ function CertificateViewModal({ show, onClose, certificate }) {
   };
 
   return (
-    <div className="modal d-block" tabIndex="-1" role="dialog" style={{ backgroundColor: 'rgba(0,0,0,0.4)' }}>
-      <div className="modal-dialog modal-xl" role="document" style={{ maxWidth: '90%' }}>
+    <div className="modal d-block" tabIndex="-1" style={{ backgroundColor: 'rgba(0,0,0,0.45)' }}>
+      <div className="modal-dialog modal-xl" style={{ maxWidth: '90%' }}>
         <div className="modal-content">
           <div className="modal-header">
-            <h5 className="modal-title">View Certificate - {certificate.certificateNumber}</h5>
+            <h5 className="modal-title">Certificate — {certificate.certificateNumber}</h5>
             <button type="button" className="btn-close" onClick={onClose} />
           </div>
 
           <div className="modal-body">
-            <div className="text-center mb-3">
-              <button className="btn btn-primary me-2" onClick={handlePrint}>
-                Print Certificate
-              </button>
+            <div className="text-center mb-3 d-flex justify-content-center gap-2">
               <button
                 className="btn btn-success"
                 onClick={handleDownload}
-                disabled={downloading}
+                disabled={downloading || loadingPrev}
               >
-                {downloading ? (
-                  <>
-                    <span className="spinner-border spinner-border-sm me-2" role="status" />
-                    Generating PDF…
-                  </>
-                ) : (
-                  'Download Certificate'
-                )}
+                {downloading
+                  ? <><span className="spinner-border spinner-border-sm me-2" />Generating PDF…</>
+                  : 'Download PDF'}
               </button>
             </div>
 
-            {/* Preview uses the stored low-res DB image — fine for on-screen viewing */}
-            {certificate.certificateImage ? (
-              <div className="text-center">
+            <div className="text-center">
+              {loadingPrev ? (
+                <div className="py-5 text-muted">
+                  <div className="spinner-border mb-2" />
+                  <div>Rendering certificate…</div>
+                </div>
+              ) : previewSrc ? (
                 <img
-                  src={certificate.certificateImage}
-                  alt="Certificate"
-                  style={{ maxWidth: '100%', height: 'auto', border: '1px solid #ccc' }}
+                  src={previewSrc}
+                  alt="Certificate preview"
+                  style={{ maxWidth: '100%', height: 'auto', border: '1px solid #dee2e6' }}
                 />
-              </div>
-            ) : (
-              <div className="p-4 border">
-                <div className="text-center">
-                  <h5 className="text-uppercase fw-bold">Certificate of Completion</h5>
-                  <p className="text-muted">This is to certify that</p>
-                  <h4 className="fw-bold text-primary mb-3">{certificate.name}</h4>
-                  <p className="mb-2">Son/Daughter of <strong>{certificate.fatherName}</strong></p>
-                  <p className="mb-2">has successfully completed the course</p>
-                  <h5 className="fw-bold mb-3">{certificate.courseName}</h5>
-                </div>
-                <div className="row mt-3">
-                  <div className="col-md-6">
-                    <p><strong>Session:</strong> {certificate.sessionFrom}-{certificate.sessionTo}</p>
-                    <p><strong>Grade:</strong> {certificate.grade}</p>
-                  </div>
-                  <div className="col-md-6">
-                    <p><strong>Enrollment No:</strong> {certificate.enrollmentNumber}</p>
-                    <p><strong>Certificate No:</strong> {certificate.certificateNumber}</p>
-                    <p><strong>Issue Date:</strong> {fmtDate(certificate.issueDate)}</p>
-                    <p><strong>Center:</strong> {certificate.centerName}</p>
-                    <p><strong>ATC:</strong> {certificate.atcName}</p>
+              ) : (
+                // Minimal text fallback if rendering fails entirely
+                <div className="p-4 border rounded text-start">
+                  <h5 className="text-uppercase fw-bold text-center">Certificate of Completion</h5>
+                  <hr />
+                  <div className="row mt-3">
+                    <div className="col-md-6">
+                      <p><strong>Name:</strong> {certificate.name}</p>
+                      <p><strong>Father's Name:</strong> {certificate.fatherName}</p>
+                      <p><strong>Course:</strong> {certificate.courseName}</p>
+                      <p><strong>Grade:</strong> {certificate.grade}</p>
+                    </div>
+                    <div className="col-md-6">
+                      <p><strong>Session:</strong> {certificate.sessionFrom}–{certificate.sessionTo}</p>
+                      <p><strong>Enrollment No:</strong> {certificate.enrollmentNumber}</p>
+                      <p><strong>Certificate No:</strong> {certificate.certificateNumber}</p>
+                      <p><strong>Issue Date:</strong> {fmtDate(certificate.issueDate)}</p>
+                      <p><strong>Center / ATC:</strong> {certificate.centerName || certificate.atcName}</p>
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
 
           <div className="modal-footer">
@@ -483,25 +443,26 @@ function CertificateViewModal({ show, onClose, certificate }) {
   );
 }
 
+// ── Main page component ───────────────────────────────────────────────────────
 export default function CertificateList() {
-  const [certs, setCerts] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [msg, setMsg] = useState('');
-  const [search, setSearch] = useState('');
-  const [showModal, setShowModal] = useState(false);
+  const [certs,        setCerts]        = useState([]);
+  const [loading,      setLoading]      = useState(false);
+  const [msg,          setMsg]          = useState('');
+  const [search,       setSearch]       = useState('');
+  const [showModal,    setShowModal]    = useState(false);
   const [showViewModal, setShowViewModal] = useState(false);
-  const [viewingCert, setViewingCert] = useState(null);
-  const [editing, setEditing] = useState(null);
+  const [viewingCert,  setViewingCert]  = useState(null);
+  const [editing,      setEditing]      = useState(null);
 
   const loadAll = async () => {
     setLoading(true);
     setMsg('');
     try {
       const data = await API.unwrap(API.get('/certificates'));
-      const arr = Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : [];
+      const arr  = Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : [];
       setCerts(arr);
     } catch (err) {
-      console.error('fetch certificates', err);
+      console.error('[CertList] fetch error:', err);
       setMsg(err.userMessage || 'Failed to load certificates');
     } finally {
       setLoading(false);
@@ -513,11 +474,11 @@ export default function CertificateList() {
   const filteredCerts = useMemo(() => {
     if (!search.trim()) return certs;
     const s = search.trim().toLowerCase();
-    return certs.filter((c) =>
-      (c.enrollmentNumber || '').toLowerCase().includes(s) ||
+    return certs.filter(c =>
+      (c.enrollmentNumber  || '').toLowerCase().includes(s) ||
       (c.certificateNumber || '').toLowerCase().includes(s) ||
-      (c.name || '').toLowerCase().includes(s) ||
-      (c.courseName || '').toLowerCase().includes(s)
+      (c.name              || '').toLowerCase().includes(s) ||
+      (c.courseName        || '').toLowerCase().includes(s)
     );
   }, [certs, search]);
 
@@ -525,39 +486,34 @@ export default function CertificateList() {
     if (!window.confirm('Delete this certificate?')) return;
     try {
       await API.delete(`/certificates/${id}`);
-      setCerts((prev) => prev.filter((c) => (c._id || c.id) !== id));
+      setCerts(prev => prev.filter(c => (c._id || c.id) !== id));
       setMsg('Certificate deleted.');
     } catch (err) {
-      console.error('delete certificate error:', err);
       setMsg(err.userMessage || 'Failed to delete certificate');
     }
   };
 
-  const handleView = (cert) => {
-    setViewingCert(cert);
-    setShowViewModal(true);
-  };
+  const handleView = (cert) => { setViewingCert(cert); setShowViewModal(true); };
+
+  const handleEdit = (cert) => { setEditing(cert); setShowModal(true); };
 
   const handleSaved = (saved) => {
-    if (!saved || !saved._id) {
-      setShowModal(false);
-      loadAll();
-      return;
-    }
-    setCerts((prev) => {
-      const idx = prev.findIndex((c) => (c._id || c.id) === (saved._id || saved.id));
+    if (!saved?._id) { setShowModal(false); loadAll(); return; }
+    setCerts(prev => {
+      const idx = prev.findIndex(c => (c._id || c.id) === (saved._id || saved.id));
       if (idx === -1) return [saved, ...prev];
-      const copy = [...prev];
-      copy[idx] = saved;
-      return copy;
+      const copy = [...prev]; copy[idx] = saved; return copy;
     });
     setShowModal(false);
+    setEditing(null);
   };
 
   return (
     <div className="d-flex min-vh-100 bg-light">
       <div className="flex-grow-1">
         <div className="container-fluid p-4">
+
+          {/* Header */}
           <div className="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
             <div>
               <h2 className="mb-0">Student Certificates</h2>
@@ -568,18 +524,22 @@ export default function CertificateList() {
                 type="text"
                 className="form-control"
                 style={{ maxWidth: 260 }}
-                placeholder="Search certificates..."
+                placeholder="Search certificates…"
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={e => setSearch(e.target.value)}
               />
               <button className="btn btn-outline-secondary" onClick={loadAll} disabled={loading}>
                 {loading ? 'Refreshing…' : 'Refresh'}
+              </button>
+              <button className="btn btn-primary" onClick={() => { setEditing(null); setShowModal(true); }}>
+                + New Certificate
               </button>
             </div>
           </div>
 
           {msg && <div className="alert alert-info">{msg}</div>}
 
+          {/* Table */}
           <div className="card shadow-sm">
             <div className="card-body p-0">
               {loading ? (
@@ -598,28 +558,23 @@ export default function CertificateList() {
                         <th>Enrollment No</th>
                         <th>Certificate No</th>
                         <th>Issue Date</th>
-                        <th>Renewal Date</th>
                         <th className="text-center">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredCerts.map((c) => (
+                      {filteredCerts.map(c => (
                         <tr key={c._id || c.id}>
                           <td>{c.name}</td>
                           <td>{c.courseName}</td>
-                          <td>{c.sessionFrom}-{c.sessionTo}</td>
+                          <td>{c.sessionFrom}–{c.sessionTo}</td>
                           <td>{c.grade}</td>
                           <td>{c.enrollmentNumber}</td>
                           <td>{c.certificateNumber}</td>
                           <td>{fmtDate(c.issueDate)}</td>
-                          <td>{fmtDate(c.renewalDate)}</td>
                           <td className="text-center">
-                            <button className="btn btn-sm btn-outline-success me-2" onClick={() => handleView(c)}>
-                              View
-                            </button>
-                            <button className="btn btn-sm btn-outline-danger" onClick={() => handleDelete(c._id || c.id)}>
-                              Delete
-                            </button>
+                            <button className="btn btn-sm btn-outline-primary me-1" onClick={() => handleView(c)}>View</button>
+                            <button className="btn btn-sm btn-outline-secondary me-1" onClick={() => handleEdit(c)}>Edit</button>
+                            <button className="btn btn-sm btn-outline-danger" onClick={() => handleDelete(c._id || c.id)}>Delete</button>
                           </td>
                         </tr>
                       ))}
@@ -645,8 +600,8 @@ export default function CertificateList() {
         certificate={viewingCert}
       />
 
-      {/* Hidden canvas for certificate rendering */}
-      <canvas id="certCanvas" style={{ display: 'none' }}></canvas>
+      {/* Hidden canvas used by CertificateGenerator */}
+      <canvas id="certCanvas" style={{ display: 'none' }} />
     </div>
   );
 }

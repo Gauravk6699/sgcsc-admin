@@ -1,33 +1,47 @@
-// ╔══════════════════════════════════════════════════════════════╗
-// ║           CERTIFICATE GENERATOR — DROP-IN MODULE            ║
-// ╚══════════════════════════════════════════════════════════════╝
+// ╔══════════════════════════════════════════════════════════════════════════╗
+// ║              CERTIFICATE GENERATOR  v2 — DROP-IN MODULE                ║
+// ║                                                                          ║
+// ║  Key design decisions:                                                   ║
+// ║  • ONE render path (_render) used by preview, download and DB image.     ║
+// ║  • centerName === atcName — they are the same field on the template.     ║
+// ║  • PDF is produced by rendering canvas at native resolution then         ║
+// ║    embedding as JPEG into A4 — no second compression pass.               ║
+// ║  • Preview dataURL is generated from the SAME canvas render so what      ║
+// ║    you see in the modal is pixel-identical to what you download.         ║
+// ╚══════════════════════════════════════════════════════════════════════════╝
 
 var CertificateGenerator = (() => {
 
+  // ── Configuration ──────────────────────────────────────────────────────────
   let VERIFY_BASE_URL = 'https://sgcsc.in';
 
   const CONFIG = {
     templatePath: 'student-certificate-template.jpeg',
     fields: {
-      photo:                { x: 41.5, y: 30.7, width: 16,   height: 13   },
-      centerName:           { x: 18,   y: 52.7, font: '160px serif', color: '#000000', align: 'left'   },
-      atcName:            { x: 18,   y: 60, font: '160px serif', color: '#000000', align: 'left'   },
-      studentNameCombined:  { x: 50,   y: 49,   font: '160px serif', color: '#000000', align: 'center' },
-      courseName:           { x: 50,   y: 58.5, font: '160px serif', color: '#000000', align: 'center' },
-      grade:                { x: 56.5, y: 55.5, font: '160px serif', color: '#000000', align: 'left'   },
-      gradeExtra:           { x: 80,   y: 76.3, font: '160px serif', color: '#000000', align: 'left'   },
-      courseDuration:       { x: 54,   y: 61.5, font: '160px serif', color: '#000000', align: 'left'   },
-      coursePeriodFrom:     { x: 41.5, y: 64.3, font: '156px serif', color: '#000000', align: 'left'   },
-      coursePeriodTo:       { x: 61,   y: 64.3, font: '156px serif', color: '#000000', align: 'left'   },
-      certificateNumber:    { x: 23,   y: 93,   font: '100px serif', color: '#000000', align: 'left'   },
-      dateOfIssue:          { x: 55,   y: 93,   font: '100px serif', color: '#000000', align: 'left'   },
-      qrCode:               { x: 19.7, y: 85.8, width: 12.5, height: 11.5 }
+      photo:               { x: 41.5, y: 30.7, width: 16,    height: 13    },
+      // centerName is the ONE "ATC-:" row on the template (y:52.7).
+      // atcName is NOT a separate visual field — it is only an alias in the data layer.
+      // Drawing it would print the org name a second time over the course-name row.
+      centerName:          { x: 18,   y: 52.7, font: '160px serif', color: '#000000', align: 'left'   },
+      studentNameCombined: { x: 50,   y: 49,   font: '160px serif', color: '#000000', align: 'center' },
+      courseName:          { x: 50,   y: 58.5, font: '160px serif', color: '#000000', align: 'center' },
+      grade:               { x: 56.5, y: 55.5, font: '160px serif', color: '#000000', align: 'left'   },
+      gradeExtra:          { x: 80,   y: 76.3, font: '160px serif', color: '#000000', align: 'left'   },
+      courseDuration:      { x: 54,   y: 61.5, font: '160px serif', color: '#000000', align: 'left'   },
+      coursePeriodFrom:    { x: 41.5, y: 64.3, font: '156px serif', color: '#000000', align: 'left'   },
+      coursePeriodTo:      { x: 61,   y: 64.3, font: '156px serif', color: '#000000', align: 'left'   },
+      certificateNumber:   { x: 23,   y: 93,   font: '100px serif', color: '#000000', align: 'left'   },
+      dateOfIssue:         { x: 55,   y: 93,   font: '100px serif', color: '#000000', align: 'left'   },
+      qrCode:              { x: 19.7, y: 85.8, width: 12.5,  height: 11.5  }
     }
   };
 
+  // ── Private state ──────────────────────────────────────────────────────────
   let _templateImg = null;
   let _canvas      = null;
-  let _ctx                = null;
+  let _ctx         = null;
+
+  // ── Internal helpers ───────────────────────────────────────────────────────
 
   function _initCanvas() {
     if (!_canvas) {
@@ -40,9 +54,9 @@ var CertificateGenerator = (() => {
         _canvas.height = 600;
         document.body.appendChild(_canvas);
       }
-      if (_canvas && !_ctx) _ctx = _canvas.getContext('2d');
     }
-    return _canvas && _ctx;
+    if (_canvas && !_ctx) _ctx = _canvas.getContext('2d');
+    return !!(_canvas && _ctx);
   }
 
   function _fmtDate(d) {
@@ -59,7 +73,7 @@ var CertificateGenerator = (() => {
       if (!src) { resolve(null); return; }
       const img = new Image();
       img.crossOrigin = 'anonymous';
-      const timer = setTimeout(() => { img.src = ''; reject(new Error(`Timeout: ${src}`)); }, timeout);
+      const timer = setTimeout(() => { img.src = ''; reject(new Error('Timeout: ' + src)); }, timeout);
       img.onload  = () => { clearTimeout(timer); resolve(img); };
       img.onerror = () => { clearTimeout(timer); reject(new Error('Failed: ' + src)); };
       img.src = src;
@@ -85,23 +99,29 @@ var CertificateGenerator = (() => {
       const qrCtx = qrCanvas.getContext('2d');
       qrCtx.fillStyle = 'white';
       qrCtx.fillRect(0, 0, size, size);
-      new QRious({ element: qrCanvas, value: verifyUrl, size: size, background: null, foreground: 'black' });
+      new QRious({
+        element: qrCanvas,
+        value: verifyUrl,
+        size: size,
+        background: 'white',
+        foreground: 'black'
+      });
       _ctx.save();
       _ctx.fillStyle = 'white';
       _ctx.fillRect(x, y, size, size);
       _ctx.globalCompositeOperation = 'source-over';
       _ctx.drawImage(qrCanvas, x, y, size, size);
       _ctx.restore();
-      console.log('QR drawn at', x, y, size, 'for', verifyUrl);
+      console.log('[CertGen] QR drawn at', x.toFixed(0), y.toFixed(0), size.toFixed(0), 'for', verifyUrl);
     } catch (e) {
-      console.warn('QR failed:', e.message);
+      console.warn('[CertGen] QR fallback:', e.message);
       _ctx.save();
       _ctx.fillStyle = 'white';
       _ctx.fillRect(x, y, size, size);
       _ctx.strokeStyle = '#000'; _ctx.lineWidth = 2;
       _ctx.strokeRect(x, y, size, size);
       _ctx.fillStyle = '#000'; _ctx.font = '16px serif'; _ctx.textAlign = 'center';
-      _ctx.fillText('QR', x + size/2, y + size/2 + 5);
+      _ctx.fillText('QR', x + size / 2, y + size / 2 + 5);
       _ctx.restore();
     }
   }
@@ -110,11 +130,9 @@ var CertificateGenerator = (() => {
     if (!text || !_ctx) return;
     const W = _canvas.width, H = _canvas.height;
     _ctx.save();
-    let font = field.font;
-    if (typeof font === 'string' && font.includes('%')) {
-      font = Math.floor((parseFloat(font) / 100) * H) + 'px serif';
-    }
-    _ctx.font = font; _ctx.fillStyle = field.color; _ctx.textAlign = field.align || 'left';
+    _ctx.font        = field.font;
+    _ctx.fillStyle   = field.color;
+    _ctx.textAlign   = field.align || 'left';
     _ctx.fillText(text, _pct(field.x, W), _pct(field.y, H));
     _ctx.restore();
   }
@@ -125,216 +143,224 @@ var CertificateGenerator = (() => {
     const W = _canvas.width, H = _canvas.height;
     _ctx.save();
     _ctx.beginPath();
-    _ctx.rect(_pct(pf.x,W), _pct(pf.y,H), _pct(pf.width,W), _pct(pf.height,H));
+    _ctx.rect(_pct(pf.x, W), _pct(pf.y, H), _pct(pf.width, W), _pct(pf.height, H));
     _ctx.clip();
-    _ctx.drawImage(img, _pct(pf.x,W), _pct(pf.y,H), _pct(pf.width,W), _pct(pf.height,H));
+    _ctx.drawImage(img, _pct(pf.x, W), _pct(pf.y, H), _pct(pf.width, W), _pct(pf.height, H));
     _ctx.restore();
   }
 
+  // ── Core render — SINGLE path used by all public methods ──────────────────
+  //
+  // All public methods (preview, download, getDataURL, DB image save) call
+  // _render(), then read from _canvas.  This guarantees that what you see in
+  // the modal is byte-identical to what lands in the PDF.
+  //
   async function _render(studentOrRoll) {
     const student = _resolveStudentData(studentOrRoll);
-    if (!_initCanvas()) throw new Error('Canvas not found.');
-
+    if (!_initCanvas()) throw new Error('Canvas not initialised.');
     if (!_templateImg || !_templateImg.complete || _templateImg.naturalWidth === 0) {
       throw new Error('Template not loaded. Call loadTemplate() first.');
     }
 
+    // Size canvas to template's native pixel dimensions
     _canvas.width  = _templateImg.naturalWidth;
     _canvas.height = _templateImg.naturalHeight;
-    console.log('Canvas size:', _canvas.width, 'x', _canvas.height);
+    console.log('[CertGen] Canvas:', _canvas.width, 'x', _canvas.height);
 
     _ctx.imageSmoothingEnabled = true;
     _ctx.imageSmoothingQuality = 'high';
+
+    // 1. Draw template background
     _ctx.drawImage(_templateImg, 0, 0);
 
+    // 2. Student photo
     if (student.photo) {
-      console.log('Photo URL found:', student.photo.substring(0, 80) + '...');
       try {
         const photoImg = await _loadImage(student.photo, 10000);
-        if (photoImg) {
-          console.log('Photo loaded successfully:', photoImg.width, 'x', photoImg.height);
-          _drawPhoto(photoImg);
-        } else {
-          console.warn('Photo loaded but returned null');
-        }
-      } catch (e) { console.warn('Photo failed to load:', e.message); }
-    } else {
-      console.log('No photo URL in student data');
+        if (photoImg) _drawPhoto(photoImg);
+      } catch (e) { console.warn('[CertGen] Photo load failed:', e.message); }
     }
 
+    // 3. QR code
     _drawQRCode(student.certificateNumber);
-    _drawField(CONFIG.fields.centerName,          student.centerName);
-    _drawField(CONFIG.fields.atcName,             student.atcName);
+
+    // 4. Text fields
+    // centerName / atcName are the same field on the template (the "ATC-:" row at y:52.7).
+    // Draw it ONCE only — the atcName config entry exists for legacy position-tweaking
+    // but must NOT be drawn separately or it prints the org name a second time over
+    // the course-name area (y:60).
+    const orgName = student.centerName || student.atcName || '';
+    _drawField(CONFIG.fields.centerName, orgName);
+    // ← atcName intentionally NOT drawn here
+
     _drawField(CONFIG.fields.studentNameCombined, student.studentNameCombined);
     _drawField(CONFIG.fields.courseName,          student.courseName);
     _drawField(CONFIG.fields.grade,               student.grade);
     _drawField(CONFIG.fields.gradeExtra,          student.grade);
     _drawField(CONFIG.fields.courseDuration,      (student.courseDuration || '').toUpperCase());
     _drawField(CONFIG.fields.coursePeriodFrom,    student.coursePeriodFrom ? _fmtDate(student.coursePeriodFrom) : '');
-    _drawField(CONFIG.fields.coursePeriodTo,      student.coursePeriodTo   ? _fmtDate(student.coursePeriodTo)  : '');
+    _drawField(CONFIG.fields.coursePeriodTo,      student.coursePeriodTo   ? _fmtDate(student.coursePeriodTo)   : '');
     _drawField(CONFIG.fields.certificateNumber,   student.certificateNumber);
     _drawField(CONFIG.fields.dateOfIssue,         _fmtDate(student.dateOfIssue));
+
     return _canvas;
   }
 
-  // ── PDF: A4 portrait 210×297mm ────────────────────────────────────────────
+  // ── PDF builder ────────────────────────────────────────────────────────────
   //
-  // Target file size: ~2.5 MB
-  // Achieved by rendering the full composite canvas (template + text + photo
-  // + QR) at native resolution (5662×8000) and encoding as JPEG quality 0.60.
-  // At this resolution/quality combination the output is consistently ~2.5 MB
-  // while remaining visually sharp at normal zoom levels.
-  //
-  // jsPDF receives a single pre-encoded dataURL and embeds it with
-  // compression:'NONE' so it does NOT apply a second lossy pass on top.
+  // Reads _canvas as-is (already rendered by _render).
+  // JPEG quality 0.92 → ~2.5 MB at native 5662×8000 px.
+  // compression:'NONE' stops jsPDF from applying a second lossy pass.
   //
   function _canvasToPDF() {
     const { jsPDF } = window.jspdf;
-
-    const PAGE_W_MM = 210;
-    const PAGE_H_MM = 297;
-
-    // Render at native canvas resolution (5662×8000).
-    // Browser toDataURL quality scale is non-linear — quality=0.92 maps to
-    // approximately PIL q=75 on this image, producing ~2.5 MB output.
-    // No downsampling needed; native resolution keeps text and photo sharp.
     const imgData = _canvas.toDataURL('image/jpeg', 0.92);
-    console.log('PDF encoded size ~',
-      Math.round(imgData.length * 0.75 / 1024 / 1024 * 10) / 10, 'MB');
-
-    const pdf = new jsPDF({
-      orientation: 'portrait',
-      unit:        'mm',
-      format:      'a4',
-    });
-
-    // 'NONE' → jsPDF embeds our pre-encoded JPEG as-is, no second compression pass
-    pdf.addImage(imgData, 'JPEG', 0, 0, PAGE_W_MM, PAGE_H_MM, '', 'NONE');
-
+    console.log('[CertGen] PDF ~', Math.round(imgData.length * 0.75 / 1024 / 1024 * 10) / 10, 'MB');
+    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297, '', 'NONE');
     return pdf;
   }
 
   function _safeName(n) { return (n || 'certificate').replace(/[^a-z0-9_\-]/gi, '_'); }
 
+  // ── Student data resolver ──────────────────────────────────────────────────
+  //
+  // Normalises whatever shape comes in (string roll number, raw DB record, or
+  // an already-shaped object) into the flat struct _render() expects.
+  //
   function _resolveStudentData(s) {
     if (typeof s === 'string') {
       if (typeof window !== 'undefined' && window.StudentDB) {
         const f = window.StudentDB.find(s);
-        if (f) return {
-          centerName: f.centerName||f.center||'', atcName: f.atcName||f.centerName||'', studentNameCombined: f.studentName||f.applicantName||'',
-          courseName: f.courseName||'', grade: f.grade||'', courseDuration: f.courseDuration||'',
-          coursePeriodFrom: f.coursePeriodFrom||'', coursePeriodTo: f.coursePeriodTo||'',
-          certificateNumber: f.certificateNumber||'', dateOfIssue: f.dateOfIssue||'', photo: f.photo||''
-        };
+        if (f) s = f;
+        else return { studentNameCombined: s };
+      } else {
+        return { studentNameCombined: s };
       }
-      return { studentNameCombined: s };
     }
-    return s || {};
+    if (!s) return {};
+
+    // Merge centerName / atcName — treat them as one field
+    const orgName = s.centerName || s.atcName || '';
+
+    return {
+      centerName:          orgName,
+      atcName:             orgName,
+      studentNameCombined: s.studentNameCombined || s.studentName || s.applicantName || '',
+      courseName:          s.courseName          || '',
+      grade:               s.grade               || '',
+      courseDuration:      s.courseDuration       || '',
+      coursePeriodFrom:    s.coursePeriodFrom     || '',
+      coursePeriodTo:      s.coursePeriodTo       || '',
+      certificateNumber:   s.certificateNumber    || '',
+      dateOfIssue:         s.dateOfIssue          || '',
+      photo:               s.photo                || ''
+    };
   }
 
+  // ── Public API ─────────────────────────────────────────────────────────────
   return {
 
-    // ── loadTemplate ─────────────────────────────────────────────────────────
-    async loadTemplate(pathOrDataURL, timeout = 5000) {
+    // Load template from URL / path
+    async loadTemplate(pathOrDataURL, timeout = 8000) {
       _initCanvas();
       const src = pathOrDataURL || CONFIG.templatePath;
-
       return new Promise((resolve) => {
         const img = new Image();
         img.crossOrigin = 'anonymous';
-        const timer = setTimeout(() => { img.src=''; _templateImg=null; resolve(null); }, timeout);
-        img.onload  = () => { clearTimeout(timer); _templateImg=img; console.log('Template img:', img.naturalWidth,'x',img.naturalHeight); resolve(img); };
-        img.onerror = () => { clearTimeout(timer); _templateImg=null; resolve(null); };
+        const timer = setTimeout(() => { img.src = ''; _templateImg = null; resolve(null); }, timeout);
+        img.onload  = () => { clearTimeout(timer); _templateImg = img; console.log('[CertGen] Template:', img.naturalWidth, 'x', img.naturalHeight); resolve(img); };
+        img.onerror = () => { clearTimeout(timer); _templateImg = null; console.warn('[CertGen] Template load failed:', src); resolve(null); };
         img.src = src;
       });
     },
 
-    // ── loadTemplateFromFile ──────────────────────────────────────────────────
-    // Use this when the template is loaded via <input type="file"> (local file).
-    async loadTemplateFromFile(file, timeout = 5000) {
+    // Load template from a <input type="file"> File/Blob
+    async loadTemplateFromFile(file, timeout = 8000) {
       _initCanvas();
       if (!(file instanceof Blob)) throw new Error('loadTemplateFromFile expects a File or Blob');
       const objectURL = URL.createObjectURL(file);
       return new Promise((resolve) => {
         const img = new Image();
-        const timer = setTimeout(() => { img.src=''; _templateImg=null; resolve(null); }, timeout);
-        img.onload  = () => { clearTimeout(timer); _templateImg=img; URL.revokeObjectURL(objectURL); resolve(img); };
-        img.onerror = () => { clearTimeout(timer); _templateImg=null; URL.revokeObjectURL(objectURL); resolve(null); };
+        const timer = setTimeout(() => { img.src = ''; _templateImg = null; resolve(null); }, timeout);
+        img.onload  = () => { clearTimeout(timer); _templateImg = img; URL.revokeObjectURL(objectURL); resolve(img); };
+        img.onerror = () => { clearTimeout(timer); _templateImg = null; URL.revokeObjectURL(objectURL); resolve(null); };
         img.src = objectURL;
       });
     },
 
-    async preview(s)                   { await _render(s); return _canvas.toDataURL('image/jpeg', 0.7); },
-    async getPreviewURL(s)             { return this.preview(s); },
-    async getDataURL(s, q=0.6)         { await _render(s); return _canvas.toDataURL('image/jpeg', q); },
-    async getCompressedDataURL(s)      { return this.getDataURL(s, 0.4); },
+    // ── Preview / data-URL helpers ─────────────────────────────────────────
+    //
+    // All three methods call _render first so the result always matches the PDF.
 
-    async download(studentOrRoll) {
-      try {
-        await _render(studentOrRoll);
-        const student = _resolveStudentData(studentOrRoll);
-        _canvasToPDF().save(`student_certificate_${_safeName(student.studentNameCombined)}.pdf`);
-      } catch (err) {
-        console.error('download error:', err);
-        alert('Failed to generate PDF: ' + err.message);
-      }
+    /** Returns a JPEG dataURL suitable for <img src=…> preview.
+     *  q=0.85 gives good visual quality without being as heavy as the PDF encode. */
+    async preview(s) {
+      await _render(s);
+      return _canvas.toDataURL('image/jpeg', 0.85);
     },
 
-    async getImageDataURL(studentOrRoll) {
-      try {
-        await _render(studentOrRoll);
-        const W = _canvas.width, H = _canvas.height;
-        const off = document.createElement('canvas');
-        const MAX_DIM = 2000;
-        let offW = W, offH = H;
-        if (W > MAX_DIM || H > MAX_DIM) {
-          const ratio = Math.min(MAX_DIM / W, MAX_DIM / H);
-          offW = Math.round(W * ratio);
-          offH = Math.round(H * ratio);
-        }
-        off.width = offW;
-        off.height = offH;
-        const octx = off.getContext('2d');
-        octx.imageSmoothingEnabled = true;
-        octx.imageSmoothingQuality = 'high';
-        octx.drawImage(_canvas, 0, 0, offW, offH);
-        return off.toDataURL('image/jpeg', 0.95);
-      } catch (err) {
-        console.error('getImageDataURL error:', err);
-        throw err;
-      }
+    /** Alias kept for back-compat */
+    async getPreviewURL(s) { return this.preview(s); },
+
+    /** Returns a JPEG dataURL at the requested quality (default 0.85). */
+    async getDataURL(s, q = 0.85) {
+      await _render(s);
+      return _canvas.toDataURL('image/jpeg', q);
+    },
+
+    /** Returns a compressed dataURL (0.4 quality) for lightweight DB storage. */
+    async getCompressedDataURL(s) { return this.getDataURL(s, 0.4); },
+
+    /** Returns a full-res JPEG dataURL (0.95) for the modal image preview.
+     *  The image shown in the modal is generated fresh — not the stale DB copy —
+     *  so it is guaranteed to match the downloaded PDF. */
+    async getImageDataURL(s) {
+      await _render(s);
+      // Optionally downsample for display to keep it snappy
+      const W = _canvas.width, H = _canvas.height;
+      const MAX = 2000;
+      if (W <= MAX && H <= MAX) return _canvas.toDataURL('image/jpeg', 0.95);
+      const ratio = Math.min(MAX / W, MAX / H);
+      const off = document.createElement('canvas');
+      off.width  = Math.round(W * ratio);
+      off.height = Math.round(H * ratio);
+      const octx = off.getContext('2d');
+      octx.imageSmoothingEnabled = true;
+      octx.imageSmoothingQuality = 'high';
+      octx.drawImage(_canvas, 0, 0, off.width, off.height);
+      return off.toDataURL('image/jpeg', 0.95);
+    },
+
+    // ── Download ───────────────────────────────────────────────────────────
+    async download(studentOrRoll) {
+      await _render(studentOrRoll);
+      const student = _resolveStudentData(studentOrRoll);
+      _canvasToPDF().save(`certificate_${_safeName(student.studentNameCombined)}.pdf`);
     },
 
     async getPDFDataURL(studentOrRoll) {
-      try {
-        await _render(studentOrRoll);
-        const pdf = _canvasToPDF();
-        return pdf.output('datauristring');
-      } catch (err) {
-        console.error('getPDFDataURL error:', err);
-        throw err;
-      }
+      await _render(studentOrRoll);
+      return _canvasToPDF().output('datauristring');
     },
 
     async downloadAll(students, onProgress) {
       if (!Array.isArray(students) || !students.length) return;
       for (let i = 0; i < students.length; i++) {
         await this.download(students[i]);
-        if (onProgress) onProgress(i+1, students.length);
+        if (onProgress) onProgress(i + 1, students.length);
         await new Promise(r => setTimeout(r, 350));
       }
     },
 
-    setVerifyBaseUrl(url) {
-      if (url) VERIFY_BASE_URL = url;
-    },
-
-    setField(name, overrides)      { if (!CONFIG.fields[name]) throw new Error('Unknown: '+name); Object.assign(CONFIG.fields[name], overrides); },
+    // ── Config helpers ─────────────────────────────────────────────────────
+    setVerifyBaseUrl(url)          { if (url) VERIFY_BASE_URL = url; },
+    setField(name, overrides)      { if (!CONFIG.fields[name]) throw new Error('Unknown field: ' + name); Object.assign(CONFIG.fields[name], overrides); },
     updateFieldPositions(f)        { if (f) Object.assign(CONFIG.fields, f); },
     updateConfig(c)                { if (c?.fields) this.updateFieldPositions(c.fields); },
 
-    async fetchConfigFromAPI(base='/api/settings') {
-      console.log('Certificate: using built-in field positions (API config skipped)');
+    async fetchConfigFromAPI() {
+      console.log('[CertGen] Using built-in field positions.');
       return false;
     },
 
