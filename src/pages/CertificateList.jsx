@@ -70,7 +70,10 @@ function initCertificateGenerator() {
 // records saved under any field name (old or new) all render correctly.
 //
 function buildStudentData(cert) {
-  const orgName = cert.centerName || cert.atcName || cert.center || cert.organisation || '';
+  // Walk every known field alias — covers records saved under any schema version.
+  // The user-visible fallback matches what was printed on old certificates.
+  const orgName = cert.centerName || cert.atcName || cert.center || cert.organisation
+                  || cert.instituteName || cert.institute || '';
   return {
     centerName:          orgName,
     atcName:             orgName,
@@ -156,6 +159,7 @@ function CertificateModal({ show, onClose, onSaved, initial }) {
       ['courseDuration','Course Duration'],['coursePeriodFrom','Course Period From'],
       ['coursePeriodTo','Course Period To'],['enrollmentNumber','Enrollment Number'],
       ['certificateNumber','Certificate Number'],['issueDate','Issue Date'],
+      ['centerName','Center / ATC Name'],
     ];
     for (const [k, label] of required) {
       if (!form[k]?.trim?.() && !form[k]) { setError(`${label} is required.`); return false; }

@@ -215,6 +215,7 @@ export default function CertificateCreate() {
       [!coursePeriodTo,           'Course Period To is required.'],
       [!certificateNumber.trim(), 'Certificate Number is required.'],
       [!issueDate,                'Issue Date is required.'],
+      [!centerName.trim(),        'Center / ATC Name is required.'],
     ];
     for (const [fail, msg] of checks) {
       if (fail) { setMessageType('danger'); setMessage(msg); return false; }
@@ -230,7 +231,7 @@ export default function CertificateCreate() {
 
     setSaving(true);
     try {
-      const orgName = centerName || 'SGCSC Training Center';
+      const orgName = centerName.trim();
       const studentNameCombined = `${name.trim()} S/O, D/O, W/O ${fatherName.trim()}`;
 
       const payload = {
