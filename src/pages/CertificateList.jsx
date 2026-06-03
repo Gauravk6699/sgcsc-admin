@@ -66,10 +66,11 @@ function initCertificateGenerator() {
 //
 // Single source of truth: converts a DB certificate record into the flat
 // object CertificateGenerator._render() expects.
-// centerName and atcName are treated as the same field; centerName wins.
+// centerName and atcName are the same field; check every known alias so
+// records saved under any field name (old or new) all render correctly.
 //
 function buildStudentData(cert) {
-  const orgName = cert.centerName || cert.atcName || '';
+  const orgName = cert.centerName || cert.atcName || cert.center || cert.organisation || '';
   return {
     centerName:          orgName,
     atcName:             orgName,

@@ -143,7 +143,7 @@ export default function CertificateCreate() {
     setName(student.name         || '');
     setFatherName(student.fatherName || '');
     // Use centerName as the single org field
-    setCenterName(student.centerName || '');
+    setCenterName(student.centerName || student.atcName || student.center || '');
     setStudentPhoto(student.photo || '');
 
     if (student.courses && Array.isArray(student.courses) && student.courses.length > 0) {
