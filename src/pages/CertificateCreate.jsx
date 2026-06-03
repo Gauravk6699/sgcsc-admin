@@ -136,7 +136,7 @@ export default function CertificateCreate() {
     setFilteredCourses([]);
 
     const student = allStudents.find(s =>
-      (s.enrollmentNumber || s.rollNumber) === selectedEnrollment
+      (s.enrollmentNo || s.rollNumber) === selectedEnrollment
     );
     if (!student) return;
 
@@ -162,7 +162,7 @@ export default function CertificateCreate() {
     if (!selectedCourseName || !enrollmentNumber) return;
 
     const student = allStudents.find(s =>
-      (s.enrollmentNumber || s.rollNumber) === enrollmentNumber
+      (s.enrollmentNo || s.rollNumber) === enrollmentNumber
     );
     if (!student) return;
 
@@ -327,8 +327,8 @@ export default function CertificateCreate() {
                   >
                     <option value="">Select Student</option>
                     {filteredStudents.map(s => (
-                      <option key={s._id || s.enrollmentNumber} value={s.enrollmentNumber || s.rollNumber}>
-                        {s.name} ({s.enrollmentNumber || s.rollNumber})
+                      <option key={s._id || s.enrollmentNo || s.rollNumber} value={s.enrollmentNo || s.rollNumber}>
+                        {s.name} ({s.enrollmentNo || s.rollNumber})
                       </option>
                     ))}
                   </select>

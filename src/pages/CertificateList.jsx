@@ -104,7 +104,7 @@ async function fetchStudentPhoto(enrollmentNumber) {
     const list = Array.isArray(res.data) ? res.data
                : Array.isArray(res.data?.data) ? res.data.data : [];
     const student = list.find(s =>
-      (s.enrollmentNumber || s.rollNumber || '').toLowerCase() ===
+      (s.enrollmentNo || s.rollNumber || '').toLowerCase() ===
       (enrollmentNumber || '').toLowerCase()
     );
     return student?.photo || '';
