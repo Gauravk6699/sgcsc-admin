@@ -68,14 +68,23 @@ var CertificateGenerator = (() => {
 
   function _pct(val, total) { return (val / 100) * total; }
 
+  // Load an image with crossOrigin=anonymous (required for toDataURL without canvas taint).
+  // If the server does not send CORS headers the load will fail — resolve(null) so the
+  // canvas stays untainted and all text fields / QR still render correctly.
   function _loadImage(src, timeout = 10000) {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
       if (!src) { resolve(null); return; }
       const img = new Image();
       img.crossOrigin = 'anonymous';
-      const timer = setTimeout(() => { img.src = ''; reject(new Error('Timeout: ' + src)); }, timeout);
+      const timer = setTimeout(() => { img.src = ''; resolve(null); }, timeout);
       img.onload  = () => { clearTimeout(timer); resolve(img); };
-      img.onerror = () => { clearTimeout(timer); reject(new Error('Failed: ' + src)); };
+      // onerror fires when the server lacks CORS headers — resolve null, never reject,
+      // so the canvas is never tainted and toDataURL() works for all subsequent draws.
+      img.onerror = () => {
+        clearTimeout(timer);
+        console.warn('[CertGen] Photo skipped (CORS/load error):', src);
+        resolve(null);
+      };
       img.src = src;
     });
   }
@@ -174,11 +183,25 @@ var CertificateGenerator = (() => {
     _ctx.drawImage(_templateImg, 0, 0);
 
     // 2. Student photo
+    // _loadImage always resolves (never rejects) so a missing CORS header on the
+    // photo URL cannot taint the canvas or interrupt the rest of the render.
     if (student.photo) {
-      try {
-        const photoImg = await _loadImage(student.photo, 10000);
-        if (photoImg) _drawPhoto(photoImg);
-      } catch (e) { console.warn('[CertGen] Photo load failed:', e.message); }
+      const photoImg = await _loadImage(student.photo, 10000);
+      if (photoImg) {
+        try {
+          _drawPhoto(photoImg);
+          // Probe for taint immediately — if toDataURL throws here the photo
+          // is cross-origin without CORS headers; redraw template to clear it.
+          _canvas.toDataURL('image/jpeg', 0.1);
+        } catch (secErr) {
+          console.warn('[CertGen] Canvas tainted by photo, re-drawing template without photo.');
+          _canvas.width  = _templateImg.naturalWidth;
+          _canvas.height = _templateImg.naturalHeight;
+          _ctx.imageSmoothingEnabled = true;
+          _ctx.imageSmoothingQuality = 'high';
+          _ctx.drawImage(_templateImg, 0, 0);
+        }
+      }
     }
 
     // 3. QR code
