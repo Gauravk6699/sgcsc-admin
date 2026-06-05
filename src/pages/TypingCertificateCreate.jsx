@@ -105,6 +105,7 @@ export default function TypingCertificateCreate() {
 
   // Optional links
   const [studentId, setStudentId] = useState('');
+  const [photo, setPhoto] = useState('');
 
   const [loadingLists, setLoadingLists] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -238,6 +239,7 @@ export default function TypingCertificateCreate() {
             grade: grade.trim(),
             studyCentre: studyCentre.trim(),
             wordsPerMinute: wordsPerMinute.trim(),
+            photo: photo || undefined,
           };
           certificateImage = await typingCertificateGenerator.getDataURL(certificateData);
         } catch (imgErr) {
@@ -267,6 +269,7 @@ export default function TypingCertificateCreate() {
         grade: grade.trim(),
         studyCentre: studyCentre.trim(),
         wordsPerMinute: wordsPerMinute.trim(),
+        photo: photo || undefined,
         studentId: studentId || undefined,
         certificateImage,
       };
@@ -290,6 +293,7 @@ export default function TypingCertificateCreate() {
       setStudyCentre('');
       setWordsPerMinute('');
       setStudentId('');
+      setPhoto('');
     } catch (err) {
       console.error('create typing certificate error:', err);
       setMessageType('danger');
@@ -311,6 +315,7 @@ export default function TypingCertificateCreate() {
         setFatherHusbandName(selectedStudent.fatherName || '');
         setMotherName(selectedStudent.motherName || '');
         setEnrollmentNumber(selectedStudent.enrollmentNo || selectedStudent.rollNumber || '');
+        setPhoto(selectedStudent.photo || '');
       }
     }
   };

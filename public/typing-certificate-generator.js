@@ -1,53 +1,48 @@
-// ═══════════════════════════════════════════════════════════════╗
-// ║        TYPING CERTIFICATE GENERATOR — DROP-IN MODULE        ║
-// ║                                                              ║
-// ║  SETUP (do once):                                            ║
-// ║    TypingCertificateGenerator.loadTemplate('path/to/template.jpg') ║
-// ║                                                              ║
-// ║  GENERATE (call whenever you have student data):             ║
-// ║    TypingCertificateGenerator.download({ ...studentData })   ║
-// ║    TypingCertificateGenerator.preview({ ...studentData }) ← blob  ║
-// ║    TypingCertificateGenerator.downloadAll([ ...students ])    ║
-// ╚══════════════════════════════════════════════════════════════╝
+// ╔══════════════════════════════════════════════════════════════════════════╗
+// ║           TYPING CERTIFICATE GENERATOR — DROP-IN MODULE                 ║
+// ║                                                                          ║
+// ║  Same design as CertificateGenerator v2:                                 ║
+// ║  • ONE render path (_render) used by preview, download and DB image.     ║
+// ║  • Photo drawn with CORS-safe loader (resolves null on failure).         ║
+// ║  • QR code links to /verify/typing/<certificateNo> for scan verification.║
+// ║  • PDF produced by rendering canvas at native resolution.                ║
+// ╚══════════════════════════════════════════════════════════════════════════╝
 
 var TypingCertificateGenerator = (() => {
 
-  // ─────────────────────────────────────────────
-  // CONFIGURATION — adjust these positions to match your JPG template
-  // All positions are percentage of image width/height (0–100)
-  // x: horizontal position (0 = left edge, 100 = right edge)
-  // y: vertical position (0 = top edge, 100 = bottom edge)
-  // ─────────────────────────────────────────────
-  const CONFIG = {
-    templatePath: 'typing-certificate-template.jpeg',   // ← path to your template (can be overridden)
+  // ── Configuration ──────────────────────────────────────────────────────────
+  let VERIFY_BASE_URL = 'https://sgcsc.in';
 
+  const CONFIG = {
+    templatePath: 'typing-certificate-template.jpeg',
     fields: {
-      // { x, y } as % of image dimensions. font is px at full resolution.
-      studentName:        { x: 63, y: 52.3, font: '200px serif',     color: '#000000', align: 'center' },
-      fatherHusbandName:  { x: 32,  y: 57, font: '200px serif',       color: '#000000', align: 'left' },
-      motherName:         { x: 70,  y: 57, font: '200px serif',       color: '#000000', align: 'left' },
-      enrollmentNumber:   { x: 22.5, y: 77.5, font: '150px serif',    color: '#000000', align: 'left' },
-      computerTyping:     { x: 22.5, y: 82, font: '150px serif',      color: '#000000', align: 'left' },
-      certificateNo:      { x: 22.5, y: 86.5, font: '150px serif',     color: '#000000', align: 'left' },
-      dateOfIssue:        { x: 22.5, y: 90.7, font: '150px serif',     color: '#000000', align: 'left' },
-      sessionFrom:        { x: 74,  y: 61, font: '200px serif',       color: '#000000', align: 'left' },
-      sessionTo:          { x: 83,  y: 61, font: '200px serif',       color: '#000000', align: 'left' },
-      grade:              { x: 86,  y: 65, font: '200px serif',       color: '#000000', align: 'left' },
-      studyCentre:        { x: 37,  y: 69.4, font: '200px serif',     color: '#000000', align: 'left' },
-      wordsPerMinute:     { x: 28.5, y: 82, font: '150px serif',      color: '#000000', align: 'left' },
+      // Photo box — upper-right box on the template (x/y = top-left corner, as % of image)
+      photo:              { x: 81.7, y: 35,   width: 12,  height: 19   },
+      // QR code — center of upper-left box on the template (x/y = center, as % of image)
+      qrCode:             { x: 12.5, y: 45,   width: 12,  height: 45   },
+      // Text fields — positions as % of image width/height
+      studentName:        { x: 63,   y: 52.3, font: '200px serif', color: '#000000', align: 'center' },
+      fatherHusbandName:  { x: 32,   y: 57,   font: '200px serif', color: '#000000', align: 'left'   },
+      motherName:         { x: 70,   y: 57,   font: '200px serif', color: '#000000', align: 'left'   },
+      enrollmentNumber:   { x: 22.5, y: 77.5, font: '150px serif', color: '#000000', align: 'left'   },
+      computerTyping:     { x: 22.5, y: 82,   font: '150px serif', color: '#000000', align: 'left'   },
+      certificateNo:      { x: 22.5, y: 86.2, font: '150px serif', color: '#000000', align: 'left'   },
+      dateOfIssue:        { x: 22.5, y: 90.7, font: '150px serif', color: '#000000', align: 'left'   },
+      sessionFrom:        { x: 74,   y: 61,   font: '200px serif', color: '#000000', align: 'left'   },
+      sessionTo:          { x: 83,   y: 61,   font: '200px serif', color: '#000000', align: 'left'   },
+      grade:              { x: 86,   y: 65,   font: '200px serif', color: '#000000', align: 'left'   },
+      studyCentre:        { x: 37,   y: 69.4, font: '200px serif', color: '#000000', align: 'left'   },
+      wordsPerMinute:     { x: 28.5, y: 82,   font: '150px serif', color: '#000000', align: 'left'   },
     }
   };
 
-  // ─────────────────────────────────────────────
-  // Internal state
-  // ─────────────────────────────────────────────
+  // ── Private state ──────────────────────────────────────────────────────────
   let _templateImg = null;
-  let _canvas = null;
-  let _ctx = null;
+  let _canvas      = null;
+  let _ctx         = null;
 
-  // ─────────────────────────────────────────────
-  // Initialize canvas on load
-  // ─────────────────────────────────────────────
+  // ── Internal helpers ───────────────────────────────────────────────────────
+
   function _initCanvas() {
     if (!_canvas) {
       _canvas = document.getElementById('typingCertCanvas');
@@ -55,20 +50,15 @@ var TypingCertificateGenerator = (() => {
         _canvas = document.createElement('canvas');
         _canvas.id = 'typingCertCanvas';
         _canvas.style.display = 'none';
-        _canvas.width = 800;
+        _canvas.width  = 800;
         _canvas.height = 600;
         document.body.appendChild(_canvas);
       }
-      if (_canvas && !_ctx) {
-        _ctx = _canvas.getContext('2d');
-      }
     }
-    return _canvas && _ctx;
+    if (_canvas && !_ctx) _ctx = _canvas.getContext('2d');
+    return !!(_canvas && _ctx);
   }
 
-  // ─────────────────────────────────────────────
-  // Helpers
-  // ─────────────────────────────────────────────
   function _fmtDate(d) {
     if (!d) return '';
     const dt = new Date(d);
@@ -78,210 +68,287 @@ var TypingCertificateGenerator = (() => {
 
   function _pct(val, total) { return (val / 100) * total; }
 
-  // Helper to load an image from URL (with cache busting)
-  function _loadImage(src) {
-    return new Promise((resolve, reject) => {
-      if (!src) {
-        resolve(null);
-        return;
-      }
+  // CORS-safe image loader — resolves null on error so the canvas is never tainted.
+  function _loadImage(src, timeout = 10000) {
+    return new Promise((resolve) => {
+      if (!src) { resolve(null); return; }
       const img = new Image();
       img.crossOrigin = 'anonymous';
-      img.onload = () => resolve(img);
-      img.onerror = () => reject(new Error('Failed to load image: ' + src));
-      // Add cache-busting to force reload when template changes
-      const separator = src.includes('?') ? '&' : '?';
-      img.src = src + separator + '_cb=' + Date.now();
+      const timer = setTimeout(() => { img.src = ''; resolve(null); }, timeout);
+      img.onload  = () => { clearTimeout(timer); resolve(img); };
+      img.onerror = () => {
+        clearTimeout(timer);
+        console.warn('[TypingCertGen] Photo skipped (CORS/load error):', src);
+        resolve(null);
+      };
+      img.src = src;
     });
+  }
+
+  function _drawQRCode(certificateNo) {
+    if (!certificateNo || !_ctx) return;
+    const qrField = CONFIG.fields.qrCode;
+    if (!qrField) return;
+
+    const verifyUrl = `${VERIFY_BASE_URL}/verify/typing/${encodeURIComponent(certificateNo)}`;
+    const W = _canvas.width, H = _canvas.height;
+    const size = Math.min(_pct(qrField.width, W), _pct(qrField.height, H));
+    const x    = _pct(qrField.x, W) - size / 2;
+    const y    = _pct(qrField.y, H) - size / 2;
+
+    try {
+      if (typeof QRious === 'undefined') throw new Error('QRious not loaded');
+      const qrCanvas = document.createElement('canvas');
+      qrCanvas.width  = size;
+      qrCanvas.height = size;
+      const qrCtx = qrCanvas.getContext('2d');
+      qrCtx.fillStyle = 'white';
+      qrCtx.fillRect(0, 0, size, size);
+      new QRious({
+        element: qrCanvas,
+        value: verifyUrl,
+        size: size,
+        background: 'white',
+        foreground: 'black'
+      });
+      _ctx.save();
+      _ctx.fillStyle = 'white';
+      _ctx.fillRect(x, y, size, size);
+      _ctx.globalCompositeOperation = 'source-over';
+      _ctx.drawImage(qrCanvas, x, y, size, size);
+      _ctx.restore();
+      console.log('[TypingCertGen] QR drawn at', x.toFixed(0), y.toFixed(0), size.toFixed(0), 'for', verifyUrl);
+    } catch (e) {
+      console.warn('[TypingCertGen] QR fallback:', e.message);
+      _ctx.save();
+      _ctx.fillStyle = 'white';
+      _ctx.fillRect(x, y, size, size);
+      _ctx.strokeStyle = '#000'; _ctx.lineWidth = 2;
+      _ctx.strokeRect(x, y, size, size);
+      _ctx.fillStyle = '#000'; _ctx.font = '16px serif'; _ctx.textAlign = 'center';
+      _ctx.fillText('QR', x + size / 2, y + size / 2 + 5);
+      _ctx.restore();
+    }
   }
 
   function _drawField(field, text) {
     if (!text || !_ctx) return;
     const W = _canvas.width, H = _canvas.height;
     _ctx.save();
-    _ctx.font = field.font;
+    _ctx.font      = field.font;
     _ctx.fillStyle = field.color;
-
-    if (field.align === 'center') {
-      _ctx.textAlign = 'center';
-      _ctx.fillText(text, _pct(field.x, W), _pct(field.y, H));
-    } else if (field.align === 'right') {
-      _ctx.textAlign = 'right';
-      _ctx.fillText(text, _pct(field.x, W), _pct(field.y, H));
-    } else {
-      _ctx.textAlign = 'left';
-      _ctx.fillText(text, _pct(field.x, W), _pct(field.y, H));
-    }
+    _ctx.textAlign = field.align || 'left';
+    _ctx.fillText(text, _pct(field.x, W), _pct(field.y, H));
     _ctx.restore();
   }
 
-  // Helper to resolve typing certificate data from identifier or object
+  function _drawPhoto(img) {
+    if (!img || !_ctx) return;
+    const pf = CONFIG.fields.photo; if (!pf) return;
+    const W = _canvas.width, H = _canvas.height;
+    _ctx.save();
+    _ctx.beginPath();
+    _ctx.rect(_pct(pf.x, W), _pct(pf.y, H), _pct(pf.width, W), _pct(pf.height, H));
+    _ctx.clip();
+    _ctx.drawImage(img, _pct(pf.x, W), _pct(pf.y, H), _pct(pf.width, W), _pct(pf.height, H));
+    _ctx.restore();
+  }
+
   function _resolveTypingData(dataOrId) {
     if (typeof dataOrId === 'string') {
       if (typeof window !== 'undefined' && window.StudentDB) {
         const found = window.StudentDB.find(dataOrId);
-        if (found) {
-          return {
-            studentName:        found.studentName || found.applicantName || '',
-            fatherHusbandName:  found.fatherName || '',
-            motherName:         found.motherName || '',
-            enrollmentNumber:   found.enrollmentNo || found.rollNumber || '',
-            computerTyping:     found.computerTyping || '',
-            certificateNo:      found.certificateNumber || '',
-            dateOfIssue:        found.dateOfIssue || '',
-            sessionFrom:        found.sessionFrom || '',
-            sessionTo:          found.sessionTo || '',
-            grade:              found.grade || '',
-            studyCentre:        found.studyCentre || '',
-            wordsPerMinute:     found.wordsPerMinute || ''
-          };
-        }
-        console.warn('No student found with typing-cert lookup:', dataOrId);
-        return {};
+        if (found) dataOrId = found;
+        else return { studentName: dataOrId };
+      } else {
+        return { studentName: dataOrId };
       }
-      console.warn('StudentDB not available, cannot auto-fill');
-      return {};
     }
-    return dataOrId || {};
+    const s = dataOrId || {};
+    return {
+      studentName:       s.studentName       || s.applicantName || s.name || '',
+      fatherHusbandName: s.fatherHusbandName || s.fatherName    || '',
+      motherName:        s.motherName        || '',
+      enrollmentNumber:  s.enrollmentNumber  || s.enrollmentNo  || s.rollNumber || '',
+      computerTyping:    s.computerTyping    || '',
+      certificateNo:     s.certificateNo     || s.certificateNumber || '',
+      dateOfIssue:       s.dateOfIssue       || '',
+      sessionFrom:       s.sessionFrom       || '',
+      sessionTo:         s.sessionTo         || '',
+      grade:             s.grade             || '',
+      studyCentre:       s.studyCentre       || '',
+      wordsPerMinute:    s.wordsPerMinute    || '',
+      photo:             s.photo             || '',
+    };
   }
 
-  // ─────────────────────────────────────────────
-  // Load template image (REQUIRED - JPG template must exist)
-  // ─────────────────────────────────────────────
-  async function loadTemplate(path = CONFIG.templatePath, customConfig = null) {
-    // Override templatePath if provided in customConfig
-    if (customConfig && customConfig.templatePath) {
-      CONFIG.templatePath = customConfig.templatePath;
-    }
-    // Use the path argument, or fall back to the (possibly updated) CONFIG value
-    const templatePath = path || CONFIG.templatePath;
-    if (!templatePath) throw new Error('Template path required');
-
-    try {
-      // Allow overriding field positions via customConfig
-      if (customConfig && customConfig.fields) {
-        CONFIG.fields = { ...CONFIG.fields, ...customConfig.fields };
-      }
-
-      _templateImg = await _loadImage(templatePath);
-      if (!_templateImg) {
-        throw new Error(`Template image not found at: ${templatePath}. Please ensure the JPG template exists in the public folder.`);
-      }
-
-      if (!_initCanvas()) throw new Error('Canvas not available');
-      _canvas.width  = _templateImg.width;
-      _canvas.height = _templateImg.height;
-      _ctx.drawImage(_templateImg, 0, 0);
-      console.log(`Template loaded: ${_templateImg.width}x${_templateImg.height}`);
-    } catch (err) {
-      console.error('Failed to load template:', err);
-      throw new Error(`Template loading failed: ${err.message}. Please upload the JPG template to the public folder.`);
-    }
-  }
-
-  // ─────────────────────────────────────────────
-  // Generate certificate data URL
-  // ─────────────────────────────────────────────
-  async function getDataURL(studentOrId) {
-    if (!_templateImg || !_ctx) {
+  // ── Core render — SINGLE path used by all public methods ──────────────────
+  async function _render(dataOrId) {
+    const student = _resolveTypingData(dataOrId);
+    if (!_initCanvas()) throw new Error('Canvas not initialised.');
+    if (!_templateImg || !_templateImg.complete || _templateImg.naturalWidth === 0) {
       throw new Error('Template not loaded. Call loadTemplate() first.');
     }
 
-    // Reset canvas to template
-    _ctx.clearRect(0, 0, _canvas.width, _canvas.height);
+    _canvas.width  = _templateImg.naturalWidth;
+    _canvas.height = _templateImg.naturalHeight;
+    console.log('[TypingCertGen] Canvas:', _canvas.width, 'x', _canvas.height);
+
+    _ctx.imageSmoothingEnabled = true;
+    _ctx.imageSmoothingQuality = 'high';
+
+    // 1. Draw template background
     _ctx.drawImage(_templateImg, 0, 0);
 
-    const student = _resolveTypingData(studentOrId);
-
-    _drawField(CONFIG.fields.studentName,        student.studentName);
-    _drawField(CONFIG.fields.fatherHusbandName,  student.fatherHusbandName);
-    _drawField(CONFIG.fields.motherName,         student.motherName);
-    _drawField(CONFIG.fields.enrollmentNumber,   student.enrollmentNumber);
-    _drawField(CONFIG.fields.computerTyping,     student.computerTyping);
-    _drawField(CONFIG.fields.certificateNo,      student.certificateNo);
-    _drawField(CONFIG.fields.dateOfIssue,        _fmtDate(student.dateOfIssue));
-    _drawField(CONFIG.fields.sessionFrom,        student.sessionFrom);
-    _drawField(CONFIG.fields.sessionTo,          student.sessionTo);
-    _drawField(CONFIG.fields.grade,              student.grade);
-    _drawField(CONFIG.fields.studyCentre,        student.studyCentre);
-    _drawField(CONFIG.fields.wordsPerMinute,     student.wordsPerMinute);
-
-    return _canvas.toDataURL('image/jpeg', 0.95);
-  }
-
-  // ─────────────────────────────────────────────
-  // Generate and download single certificate
-  // ─────────────────────────────────────────────
-  async function download(studentOrId) {
-    const dataURL = await getDataURL(studentOrId);
-    const student = _resolveTypingData(studentOrId);
-    const link = document.createElement('a');
-    link.download = `typing_certificate_${student.certificateNo || 'unknown'}.jpg`;
-    link.href = dataURL;
-    link.click();
-  }
-
-  // ─────────────────────────────────────────────
-  // Get a Blob URL of the certificate (for <img> preview or custom handling)
-  // ─────────────────────────────────────────────
-  async function preview(studentOrId) {
-    const dataURL = await getDataURL(studentOrId);
-    return dataURL;
-  }
-
-  // ─────────────────────────────────────────────
-  // Generate certificates for ALL students one by one
-  // ─────────────────────────────────────────────
-  async function downloadAll(students) {
-    if (!Array.isArray(students)) throw new Error('students must be an array');
-
-    for (const student of students) {
-      await download(student);
-      await new Promise(resolve => setTimeout(resolve, 500));
+    // 2. Student photo (CORS-safe — never taints the canvas)
+    if (student.photo) {
+      const photoImg = await _loadImage(student.photo, 10000);
+      if (photoImg) {
+        try {
+          _drawPhoto(photoImg);
+          _canvas.toDataURL('image/jpeg', 0.1); // taint probe
+        } catch (secErr) {
+          console.warn('[TypingCertGen] Canvas tainted by photo, re-drawing template without photo.');
+          _canvas.width  = _templateImg.naturalWidth;
+          _canvas.height = _templateImg.naturalHeight;
+          _ctx.imageSmoothingEnabled = true;
+          _ctx.imageSmoothingQuality = 'high';
+          _ctx.drawImage(_templateImg, 0, 0);
+        }
+      }
     }
+
+    // 3. QR code
+    _drawQRCode(student.certificateNo);
+
+    // 4. Text fields
+    _drawField(CONFIG.fields.studentName,       student.studentName);
+    _drawField(CONFIG.fields.fatherHusbandName, student.fatherHusbandName);
+    _drawField(CONFIG.fields.motherName,        student.motherName);
+    _drawField(CONFIG.fields.enrollmentNumber,  student.enrollmentNumber);
+    _drawField(CONFIG.fields.computerTyping,    student.computerTyping);
+    _drawField(CONFIG.fields.certificateNo,     student.certificateNo);
+    _drawField(CONFIG.fields.dateOfIssue,       _fmtDate(student.dateOfIssue));
+    _drawField(CONFIG.fields.sessionFrom,       student.sessionFrom);
+    _drawField(CONFIG.fields.sessionTo,         student.sessionTo);
+    _drawField(CONFIG.fields.grade,             student.grade);
+    _drawField(CONFIG.fields.studyCentre,       student.studyCentre);
+    _drawField(CONFIG.fields.wordsPerMinute,    student.wordsPerMinute);
+
+    return _canvas;
   }
 
-  // ─────────────────────────────────────────────
-  // Update field positions dynamically
-  // ─────────────────────────────────────────────
-  function updateFieldPositions(newFields) {
-    if (newFields && typeof newFields === 'object') {
-      CONFIG.fields = { ...CONFIG.fields, ...newFields };
-      console.log('Field positions updated:', CONFIG.fields);
-    }
+  // ── PDF builder ────────────────────────────────────────────────────────────
+  function _canvasToPDF() {
+    const { jsPDF } = window.jspdf;
+    const imgData = _canvas.toDataURL('image/jpeg', 0.92);
+    console.log('[TypingCertGen] PDF ~', Math.round(imgData.length * 0.75 / 1024 / 1024 * 10) / 10, 'MB');
+    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297, '', 'NONE');
+    return pdf;
   }
 
-  // ─────────────────────────────────────────────
-  // Update config (alias for updateFieldPositions)
-  // ─────────────────────────────────────────────
-  function updateConfig(newConfig) {
-    if (newConfig && newConfig.fields) {
-      updateFieldPositions(newConfig.fields);
-    }
-  }
+  function _safeName(n) { return (n || 'certificate').replace(/[^a-z0-9_\-]/gi, '_'); }
 
-  // ─────────────────────────────────────────────
-  // Fetch config from API and apply
-  // ─────────────────────────────────────────────
-  async function fetchConfigFromAPI(apiBaseUrl = '/api/settings') {
-    // API config not calibrated for this template — skip to avoid overriding correct positions
-    console.log('TypingCertificate: using built-in field positions (API config skipped)');
-    return false;
-  }
-
-  // ─────────────────────────────────────────────
-  // Public API
-  // ─────────────────────────────────────────────
+  // ── Public API ─────────────────────────────────────────────────────────────
   return {
-    loadTemplate,
-    getDataURL,
-    download,
-    preview,
-    downloadAll,
-    updateFieldPositions,
-    updateConfig,
-    fetchConfigFromAPI,
-    CONFIG,
+
+    // Load template from URL / path
+    async loadTemplate(pathOrDataURL, customConfig = null) {
+      _initCanvas();
+      if (customConfig && customConfig.fields) {
+        Object.assign(CONFIG.fields, customConfig.fields);
+      }
+      const src = pathOrDataURL || CONFIG.templatePath;
+      return new Promise((resolve) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        const timer = setTimeout(() => { img.src = ''; _templateImg = null; resolve(null); }, 8000);
+        img.onload  = () => { clearTimeout(timer); _templateImg = img; console.log('[TypingCertGen] Template:', img.naturalWidth, 'x', img.naturalHeight); resolve(img); };
+        img.onerror = () => { clearTimeout(timer); _templateImg = null; console.warn('[TypingCertGen] Template load failed:', src); resolve(null); };
+        img.src = src;
+      });
+    },
+
+    // Load template from a <input type="file"> File/Blob
+    async loadTemplateFromFile(file, timeout = 8000) {
+      _initCanvas();
+      if (!(file instanceof Blob)) throw new Error('loadTemplateFromFile expects a File or Blob');
+      const objectURL = URL.createObjectURL(file);
+      return new Promise((resolve) => {
+        const img = new Image();
+        const timer = setTimeout(() => { img.src = ''; _templateImg = null; resolve(null); }, timeout);
+        img.onload  = () => { clearTimeout(timer); _templateImg = img; URL.revokeObjectURL(objectURL); resolve(img); };
+        img.onerror = () => { clearTimeout(timer); _templateImg = null; URL.revokeObjectURL(objectURL); resolve(null); };
+        img.src = objectURL;
+      });
+    },
+
+    // ── Preview / data-URL helpers ─────────────────────────────────────────
+
+    async preview(s) {
+      await _render(s);
+      return _canvas.toDataURL('image/jpeg', 0.85);
+    },
+
+    async getPreviewURL(s) { return this.preview(s); },
+
+    async getDataURL(s, q = 0.95) {
+      await _render(s);
+      return _canvas.toDataURL('image/jpeg', q);
+    },
+
+    async getCompressedDataURL(s) { return this.getDataURL(s, 0.4); },
+
+    async getImageDataURL(s) {
+      await _render(s);
+      const W = _canvas.width, H = _canvas.height;
+      const MAX = 2000;
+      if (W <= MAX && H <= MAX) return _canvas.toDataURL('image/jpeg', 0.95);
+      const ratio = Math.min(MAX / W, MAX / H);
+      const off = document.createElement('canvas');
+      off.width  = Math.round(W * ratio);
+      off.height = Math.round(H * ratio);
+      const octx = off.getContext('2d');
+      octx.imageSmoothingEnabled = true;
+      octx.imageSmoothingQuality = 'high';
+      octx.drawImage(_canvas, 0, 0, off.width, off.height);
+      return off.toDataURL('image/jpeg', 0.95);
+    },
+
+    // ── Download ───────────────────────────────────────────────────────────
+    async download(dataOrId) {
+      await _render(dataOrId);
+      const student = _resolveTypingData(dataOrId);
+      _canvasToPDF().save(`typing_certificate_${_safeName(student.studentName)}.pdf`);
+    },
+
+    async getPDFDataURL(dataOrId) {
+      await _render(dataOrId);
+      return _canvasToPDF().output('datauristring');
+    },
+
+    async downloadAll(students, onProgress) {
+      if (!Array.isArray(students) || !students.length) return;
+      for (let i = 0; i < students.length; i++) {
+        await this.download(students[i]);
+        if (onProgress) onProgress(i + 1, students.length);
+        await new Promise(r => setTimeout(r, 350));
+      }
+    },
+
+    // ── Config helpers ─────────────────────────────────────────────────────
+    setVerifyBaseUrl(url)      { if (url) VERIFY_BASE_URL = url; },
+    setField(name, overrides)  { if (!CONFIG.fields[name]) throw new Error('Unknown field: ' + name); Object.assign(CONFIG.fields[name], overrides); },
+    updateFieldPositions(f)    { if (f) Object.assign(CONFIG.fields, f); },
+    updateConfig(c)            { if (c?.fields) this.updateFieldPositions(c.fields); },
+
+    async fetchConfigFromAPI() {
+      console.log('[TypingCertGen] Using built-in field positions.');
+      return false;
+    },
+
+    get config() { return CONFIG; }
   };
 
 })();
