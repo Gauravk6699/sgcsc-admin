@@ -58,6 +58,17 @@ function initCertificateGenerator() {
   return _certGenPromise;
 }
 
+// ── Grade table: 85-100 → A+, 70-84 → A, 55-69 → B, 40-54 → C ───────────────
+function gradeFromPercentage(pct) {
+  if (pct == null || isNaN(pct)) return '';
+  const p = Number(pct);
+  if (p >= 85) return 'A+';
+  if (p >= 70) return 'A';
+  if (p >= 55) return 'B';
+  if (p >= 40) return 'C';
+  return '';
+}
+
 // ── Duration helper ────────────────────────────────────────────────────────────
 function calculateDuration(fromDate, toDate) {
   if (!fromDate || !toDate) return '';
@@ -90,8 +101,8 @@ export default function CertificateCreate() {
   const [coursePeriodTo,    setCoursePeriodTo]    = useState('');
   const [certificateNumber, setCertificateNumber] = useState('');
   const [issueDate,         setIssueDate]         = useState('');
-  // Single org field — replaces the old centerName + atcName pair
-  const [centerName,        setCenterName]        = useState('Shree ganpati computer and study Centre');
+  // Single org field — auto-populated from student record
+  const [centerName,        setCenterName]        = useState('');
 
   // Supporting state
   const [allStudents,      setAllStudents]      = useState([]);
@@ -166,7 +177,7 @@ export default function CertificateCreate() {
     );
     if (!student) return;
 
-    // Try to get grade from marksheet
+    // Derive grade from marksheet percentage using grade table; fall back to stored grade
     let gradeValue = student.grade || '';
     try {
       const res        = await API.get('/marksheets');
@@ -174,7 +185,9 @@ export default function CertificateCreate() {
       const ms = marksheets.find(m =>
         m.enrollmentNo === enrollmentNumber && m.courseName === selectedCourseName
       );
-      if (ms) gradeValue = ms.overallGrade || ms.grade || gradeValue;
+      if (ms) {
+        gradeValue = gradeFromPercentage(ms.percentage) || ms.overallGrade || ms.grade || gradeValue;
+      }
     } catch (err) {
       console.warn('[CertCreate] Marksheet lookup failed:', err);
     }
@@ -353,16 +366,17 @@ export default function CertificateCreate() {
                   <small className="text-muted">{filteredCourses.length} course(s) available</small>
                 </div>
 
-                {/* Single org field */}
+                {/* Single org field — auto-filled from student DB */}
                 <div className="col-md-6">
-                  <label className="form-label">Center / ATC Name</label>
+                  <label className="form-label">Center / ATC Name *</label>
                   <input
                     type="text"
                     className="form-control"
                     value={centerName}
                     onChange={e => setCenterName(e.target.value)}
-                    placeholder="e.g. SGCSC Training Center"
+                    placeholder="Auto-filled from student record"
                   />
+                  <small className="text-muted">Auto-filled from student database</small>
                 </div>
 
                 <div className="col-md-6">
@@ -399,7 +413,8 @@ export default function CertificateCreate() {
                   <label className="form-label">Grade *</label>
                   <input type="text" className="form-control" value={grade}
                     onChange={e => setGrade(e.target.value)}
-                    placeholder="e.g. A, A+, First Division" required />
+                    placeholder="Auto-calculated from marksheet percentage" required />
+                  <small className="text-muted">A+ ≥85% · A ≥70% · B ≥55% · C ≥40%</small>
                 </div>
 
                 <div className="col-md-6">
