@@ -1,5 +1,15 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import API from "../api/axiosInstance";
+
+const INDIAN_STATES = [
+  'Andhra Pradesh','Arunachal Pradesh','Assam','Bihar','Chhattisgarh','Goa','Gujarat',
+  'Haryana','Himachal Pradesh','Jharkhand','Karnataka','Kerala','Madhya Pradesh',
+  'Maharashtra','Manipur','Meghalaya','Mizoram','Nagaland','Odisha','Punjab','Rajasthan',
+  'Sikkim','Tamil Nadu','Telangana','Tripura','Uttar Pradesh','Uttarakhand','West Bengal',
+  'Andaman and Nicobar Islands','Chandigarh','Dadra and Nagar Haveli and Daman and Diu',
+  'Delhi','Jammu and Kashmir','Ladakh','Lakshadweep','Puducherry',
+];
 
 const DEV_PLACEHOLDER =
   'https://via.placeholder.com/80x80.png?text=Photo';
@@ -94,12 +104,14 @@ const emptyEdit = {
 };
 
 export default function FranchiseList() {
+  const navigate = useNavigate();
   const [items, setItems] = useState([]);
+  const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [editError, setEditError] = useState('');
-  const [editing, setEditing] = useState(null); 
+  const [editing, setEditing] = useState(null);
   const [editForm, setEditForm] = useState(emptyEdit);
   const [showPassword, setShowPassword] = useState(false);
 
@@ -129,6 +141,17 @@ export default function FranchiseList() {
     load();
   }, []);
 
+  const filteredItems = useMemo(() => {
+    if (!search.trim()) return items;
+    const term = search.trim().toLowerCase();
+    return items.filter((f) =>
+      [f.instituteId, f.ownerName, f.instituteName, f.email, f.contact,
+       f.whatsapp, f.state, f.district, f.username].some(
+        (v) => typeof v === 'string' && v.toLowerCase().includes(term)
+      )
+    );
+  }, [items, search]);
+
   const openEdit = (f) => {
     setEditing(f);
     setEditError('');
@@ -146,8 +169,8 @@ export default function FranchiseList() {
       classRooms: f.classRooms ?? '',
       totalComputers: f.totalComputers ?? '',
       centerSpace: f.centerSpace || '',
-      whatsapp: f.whatsapp || '',
-      contact: f.contact || '',
+      whatsapp: (f.whatsapp || '').replace(/^\+91/, ''),
+      contact: (f.contact || '').replace(/^\+91/, ''),
       email: f.email || '',
       ownerQualification: f.ownerQualification || '',
       hasReception: f.hasReception ?? false,
@@ -158,8 +181,6 @@ export default function FranchiseList() {
       password: '',
       status: f.status || 'pending',
       balance: f.balance ?? 0,
-
-
     });
   };
 
@@ -192,17 +213,12 @@ export default function FranchiseList() {
     setEditError('');
 
     try {
-const payload = { ...editForm };
+      const payload = { ...editForm };
+      if (!payload.password) delete payload.password;
+      if (payload.whatsapp) payload.whatsapp = `+91${payload.whatsapp.replace(/^\+91/, '')}`;
+      if (payload.contact) payload.contact = `+91${payload.contact.replace(/^\+91/, '')}`;
 
-// do not overwrite password if empty
-if (!payload.password) {
-  delete payload.password;
-}
-
-const res = await API.put(
-  `/franchises/${editing._id}`,
-  payload
-);
+      const res = await API.put(`/franchises/${editing._id}`, payload);
 
       const updated = res.data;
 
@@ -235,7 +251,7 @@ const res = await API.put(
 
   return (
     <div className="container-fluid p-4">
-      <div className="d-flex justify-content-between align-items-center mb-4">
+      <div className="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
         <div>
           <h2 className="mb-0">Franchise List</h2>
           <div className="small text-muted">
@@ -243,13 +259,29 @@ const res = await API.put(
           </div>
         </div>
         <div className="d-flex gap-2">
-          <button
-            className="btn btn-outline-secondary"
-            onClick={load}
-            disabled={loading}
-          >
+          <button className="btn btn-outline-secondary" onClick={load} disabled={loading}>
             {loading ? 'Refreshing…' : 'Refresh'}
           </button>
+          <button className="btn btn-primary" onClick={() => navigate('/franchise/create')}>
+            + Create Franchise
+          </button>
+        </div>
+      </div>
+
+      <div className="card mb-3">
+        <div className="card-body d-flex flex-wrap gap-3 align-items-end">
+          <div style={{ minWidth: 260 }}>
+            <label className="form-label">Search</label>
+            <input
+              className="form-control"
+              placeholder="Name, ID, email, contact, state…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+          <div className="ms-auto small text-muted">
+            Showing <strong>{filteredItems.length}</strong> of <strong>{items.length}</strong> franchises
+          </div>
         </div>
       </div>
 
@@ -263,9 +295,9 @@ const res = await API.put(
         <div className="card-body p-0">
           {loading ? (
             <div className="p-4 text-center">Loading franchises…</div>
-          ) : items.length === 0 ? (
+          ) : filteredItems.length === 0 ? (
             <div className="p-4 text-center text-muted">
-              No franchises yet. Use &quot;Create Franchise&quot; to add one.
+              {items.length === 0 ? 'No franchises yet. Use "Create Franchise" to add one.' : 'No franchises match your search.'}
             </div>
           ) : (
             <div className="table-responsive">
@@ -288,7 +320,7 @@ const res = await API.put(
                   </tr>
                 </thead>
                 <tbody>
-                  {items.map((f) => (
+                  {filteredItems.map((f) => (
                     <tr key={f._id}>
                       <td>{f.instituteId}</td>
                       <td>
@@ -388,7 +420,7 @@ const res = await API.put(
           role="dialog"
           style={{ backgroundColor: 'rgba(0,0,0,0.4)' }}
         >
-          <div className="modal-dialog modal-lg" role="document">
+          <div className="modal-dialog modal-xl modal-dialog-scrollable" role="document">
             <div className="modal-content">
               <form onSubmit={saveEdit}>
                 <div className="modal-header">
@@ -494,13 +526,17 @@ const res = await API.put(
                   <div className="row g-3 mb-3">
                     <div className="col-md-4">
                       <label className="form-label">State</label>
-                      <input
-                        type="text"
-                        className="form-control"
+                      <select
+                        className="form-select"
                         name="state"
                         value={editForm.state}
                         onChange={handleEditChange}
-                      />
+                      >
+                        <option value="">Select State</option>
+                        {INDIAN_STATES.map((s) => (
+                          <option key={s} value={s}>{s}</option>
+                        ))}
+                      </select>
                     </div>
                     <div className="col-md-4">
                       <label className="form-label">District</label>
@@ -566,23 +602,33 @@ const res = await API.put(
                   <div className="row g-3 mb-3">
                     <div className="col-md-4">
                       <label className="form-label">WhatsApp</label>
-                      <input
-                        type="text"
-                        className="form-control"
-                        name="whatsapp"
-                        value={editForm.whatsapp}
-                        onChange={handleEditChange}
-                      />
+                      <div className="input-group">
+                        <span className="input-group-text">+91</span>
+                        <input
+                          type="text"
+                          className="form-control"
+                          name="whatsapp"
+                          value={editForm.whatsapp}
+                          onChange={handleEditChange}
+                          maxLength={10}
+                          placeholder="10 digit number"
+                        />
+                      </div>
                     </div>
                     <div className="col-md-4">
                       <label className="form-label">Contact</label>
-                      <input
-                        type="text"
-                        className="form-control"
-                        name="contact"
-                        value={editForm.contact}
-                        onChange={handleEditChange}
-                      />
+                      <div className="input-group">
+                        <span className="input-group-text">+91</span>
+                        <input
+                          type="text"
+                          className="form-control"
+                          name="contact"
+                          value={editForm.contact}
+                          onChange={handleEditChange}
+                          maxLength={10}
+                          placeholder="10 digit number"
+                        />
+                      </div>
                     </div>
                     <div className="col-md-4">
                       <label className="form-label">Email</label>
@@ -691,64 +737,56 @@ const res = await API.put(
                       />
                     </div>
                     <div className="col-md-6">
-                      <label className="form-label">
-                        New Password (leave blank to keep existing)
-                      </label>
-                        <div className="input-group">
-                          <input
-                            type={showPassword ? 'text' : 'password'}
-                            className="form-control"
-                            name="password"
-                            value={editForm.password}
-                            onChange={handleEditChange}
-                            placeholder="Leave blank to keep existing"
-                          />
-                          <button
-                            type="button"
-                            className="btn btn-outline-secondary"
-                            onClick={() => setShowPassword((prev) => !prev)}
-                            tabIndex={-1}
-                            aria-label={showPassword ? 'Hide password' : 'Show password'}
-                          >
-                            <i className={`bi ${showPassword ? 'bi-eye-slash' : 'bi-eye'}`} />
-                          </button>
-                        </div>
-
-                    </div>
-
-                    <div className="row g-3 mb-3">
-                      <div className="col-md-6">
-                        <label className="form-label">Franchise Status</label>
-                        <select
-                          className="form-select"
-                          name="status"
-                          value={editForm.status}
-                          onChange={handleEditChange}
-                        >
-                          <option value="pending">Pending</option>
-                          <option value="approved">Approved</option>
-                          <option value="rejected">Rejected</option>
-                        </select>
-                      </div>
-                      {/* <div className="row g-3 mb-3"> */}
-                      <div className="col-md-6">
-                        <label className="form-label">Balance (₹)</label>
+                      <label className="form-label">New Password (leave blank to keep existing)</label>
+                      <div className="input-group">
                         <input
-                          type="number"
+                          type={showPassword ? 'text' : 'password'}
                           className="form-control"
-                          name="balance"
-                          value={editForm.balance}
+                          name="password"
+                          value={editForm.password}
                           onChange={handleEditChange}
-                          min={0}
+                          placeholder="Leave blank to keep existing"
                         />
-                        <div className="form-text">
-                          Amount paid by franchise (admin controlled)
-                        </div>
+                        <button
+                          type="button"
+                          className="btn btn-outline-secondary"
+                          onClick={() => setShowPassword((prev) => !prev)}
+                          tabIndex={-1}
+                          aria-label={showPassword ? 'Hide password' : 'Show password'}
+                        >
+                          <i className={`bi ${showPassword ? 'bi-eye-slash' : 'bi-eye'}`} />
+                        </button>
                       </div>
-                    {/* </div> */}
-
                     </div>
+                  </div>
 
+                  {/* Status / Balance */}
+                  <div className="row g-3 mb-3">
+                    <div className="col-md-6">
+                      <label className="form-label">Franchise Status</label>
+                      <select
+                        className="form-select"
+                        name="status"
+                        value={editForm.status}
+                        onChange={handleEditChange}
+                      >
+                        <option value="pending">Pending</option>
+                        <option value="approved">Approved</option>
+                        <option value="rejected">Rejected</option>
+                      </select>
+                    </div>
+                    <div className="col-md-6">
+                      <label className="form-label">Balance (₹)</label>
+                      <input
+                        type="number"
+                        className="form-control"
+                        name="balance"
+                        value={editForm.balance}
+                        onChange={handleEditChange}
+                        min={0}
+                      />
+                      <div className="form-text">Amount paid by franchise (admin controlled)</div>
+                    </div>
                   </div>
 
                   {/* Existing docs quick view (read-only) */}

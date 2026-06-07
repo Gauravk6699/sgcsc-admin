@@ -1,5 +1,6 @@
 // src/pages/FranchiseCreate.jsx
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import API from "../api/axiosInstance";
 
 // ---- Constants ----
@@ -139,6 +140,7 @@ const initialState = {
 };
 
 export default function FranchiseCreate() {
+  const navigate = useNavigate();
   const [form, setForm] = useState(initialState);
   const [files, setFiles] = useState({
     aadharFront: null,
@@ -372,7 +374,7 @@ export default function FranchiseCreate() {
       });
 
       // Go to list page so user sees new record
-      window.location.href = '/franchise/list';
+      navigate('/franchise/list');
     } catch (err) {
       console.error('create franchise error:', err);
       setError(err.userMessage || 'Failed to create franchise');
