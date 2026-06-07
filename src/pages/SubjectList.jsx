@@ -145,7 +145,8 @@ export default function SubjectList() {
                       <tr>
                         <th>Course</th>
                         <th>Subject</th>
-                        <th className="text-center">Max</th>
+                        <th className="text-center">Max Theory</th>
+                        <th className="text-center">Max Practical</th>
                         <th className="text-center">Min</th>
                         <th className="text-center">Actions</th>
                       </tr>
@@ -159,6 +160,9 @@ export default function SubjectList() {
                           <td>{s.name}</td>
                           <td className="text-center">
                             {s.maxMarks ?? 0}
+                          </td>
+                          <td className="text-center">
+                            {s.maxPracticalMarks ?? 0}
                           </td>
                           <td className="text-center">
                             {s.minMarks ?? 0}
