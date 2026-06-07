@@ -102,7 +102,7 @@ export default function MarksheetCreate() {
           theoryMarks:      '',
           practicalMarks:   '',
           maxTheoryMarks:   Number(s.maxMarks) || 100,
-          maxPracticalMarks: 100,
+          maxPracticalMarks: Number(s.maxPracticalMarks) || 0,
           grade:            '',
         })));
       } else {
