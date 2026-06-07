@@ -1,18 +1,14 @@
 // src/pages/StudentDetail.jsx
 import React, { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import API from "../api/axiosInstance";
 
 export default function StudentDetail() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [student, setStudent] = useState(null);
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
-
-  // add-result form
-  const [course, setCourse] = useState('');
-  const [semester, setSemester] = useState(1);
-  const [marks, setMarks] = useState('');
   const [msg, setMsg] = useState('');
 
   const fetch = async () => {
@@ -32,21 +28,6 @@ export default function StudentDetail() {
 
   useEffect(() => { fetch(); }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const addResult = async (e) => {
-    e.preventDefault();
-    setMsg('');
-    try {
-      const payload = { studentId: id, course, semester: Number(semester), marks: Number(marks) };
-      const created = await API.unwrap(API.post('/results', payload));
-      setMsg('Result added.');
-      setCourse(''); setSemester(1); setMarks('');
-      // prepend
-      setResults(prev => [created, ...prev]);
-    } catch (err) {
-      console.error('add result', err);
-      setMsg(err.userMessage || 'Failed to add result');
-    }
-  };
 
   return (
     <div className="d-flex">
@@ -103,16 +84,19 @@ export default function StudentDetail() {
                         })}
                         <tr className="table-secondary">
                           <th>Total</th>
-                          <th>₹{student.feeAmount || 0}</th>
-                          <th>₹{student.amountPaid || 0}</th>
-                          <th className={((student.feeAmount || 0) - (student.amountPaid || 0)) > 0 ? 'text-danger' : 'text-success'}>
-                            ₹{((student.feeAmount || 0) - (student.amountPaid || 0))}
-                          </th>
-                          <th>{(student.feeAmount || 0) - (student.amountPaid || 0) <= 0 ? (
-                            <span className="badge bg-success">All Paid</span>
-                          ) : (
-                            <span className="badge bg-warning text-dark">Pending</span>
-                          )}</th>
+                          {(() => {
+                            const totalFee = student.courses.reduce((sum, c) => sum + (Number(c.feeAmount) || 0), 0);
+                            const totalPaid = student.courses.reduce((sum, c) => sum + (Number(c.amountPaid) || 0), 0);
+                            const totalDue = totalFee - totalPaid;
+                            return (
+                              <>
+                                <th>₹{totalFee}</th>
+                                <th>₹{totalPaid}</th>
+                                <th className={totalDue > 0 ? 'text-danger' : 'text-success'}>₹{totalDue}</th>
+                                <th>{totalDue <= 0 ? <span className="badge bg-success">All Paid</span> : <span className="badge bg-warning text-dark">Pending</span>}</th>
+                              </>
+                            );
+                          })()}
                         </tr>
                       </tbody>
                     </table>
@@ -132,23 +116,17 @@ export default function StudentDetail() {
                 )}
               </div>
 
-              <div className="card mb-4 p-3">
-                <h5>Add Result</h5>
-                <form onSubmit={addResult} style={{ maxWidth: 600 }}>
-                  <div className="mb-2">
-                    <label className="form-label">Course</label>
-                    <input value={course} onChange={(e)=>setCourse(e.target.value)} className="form-control" required />
-                  </div>
-                  <div className="mb-2">
-                    <label className="form-label">Semester</label>
-                    <input type="number" value={semester} onChange={(e)=>setSemester(e.target.value)} className="form-control" min="1" required />
-                  </div>
-                  <div className="mb-2">
-                    <label className="form-label">Marks</label>
-                    <input type="number" value={marks} onChange={(e)=>setMarks(e.target.value)} className="form-control" min="0" max="100" required />
-                  </div>
-                  <button className="btn btn-primary" type="submit">Add Result</button>
-                </form>
+              <div className="card mb-4 p-3 d-flex flex-row align-items-center justify-content-between gap-3">
+                <div>
+                  <h5 className="mb-1">Results</h5>
+                  <small className="text-muted">Enter subject-wise theory and practical marks from the Results page.</small>
+                </div>
+                <button
+                  className="btn btn-primary"
+                  onClick={() => navigate(`/results/add?studentId=${id}`)}
+                >
+                  Enter Results
+                </button>
               </div>
 
               <div className="card p-3">

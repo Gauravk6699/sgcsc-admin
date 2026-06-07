@@ -840,10 +840,6 @@ export default function AddStudent() {
           {/* ================= STATUS ================= */}
           <div className="row g-3 mb-3">
             <div className="col-lg-6 form-check">
-              <input className="form-check-input" type="checkbox" name="feesPaid" checked={form.feesPaid} onChange={handleChange} />
-              <label className="form-check-label">Fees Paid</label>
-            </div>
-            <div className="col-lg-6 form-check">
               <input className="form-check-input" type="checkbox" name="isCertified" checked={form.isCertified} onChange={handleChange} />
               <label className="form-check-label">Certified</label>
             </div>

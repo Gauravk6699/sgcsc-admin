@@ -1,6 +1,15 @@
 // src/components/EditStudentModal.jsx
 import { useState, useEffect } from "react";
 
+const INDIAN_STATES = [
+  "Andhra Pradesh","Arunachal Pradesh","Assam","Bihar","Chhattisgarh","Goa","Gujarat",
+  "Haryana","Himachal Pradesh","Jharkhand","Karnataka","Kerala","Madhya Pradesh",
+  "Maharashtra","Manipur","Meghalaya","Mizoram","Nagaland","Odisha","Punjab","Rajasthan",
+  "Sikkim","Tamil Nadu","Telangana","Tripura","Uttar Pradesh","Uttarakhand","West Bengal",
+  "Andaman and Nicobar Islands","Chandigarh","Dadra and Nagar Haveli and Daman and Diu",
+  "Delhi","Jammu and Kashmir","Ladakh","Lakshadweep","Puducherry",
+];
+
 function fmtDate(d) {
   if (!d) return "";
   const dt = new Date(d);
@@ -68,6 +77,7 @@ export default function EditStudentModal({
 
     setEditForm({
       rollNumber: s.rollNumber || "",
+      enrollmentNo: s.enrollmentNo || "",
       centerName: s.centerName || "",
       name: s.name || "",
       fatherName: s.fatherName || "",
@@ -75,7 +85,7 @@ export default function EditStudentModal({
       gender: s.gender || "",
       dob: fmtDate(s.dob),
       email: s.email || "",
-      mobile: s.mobile || s.contact || "",
+      mobile: (s.mobile || s.contact || "").replace(/^\+91/, ""),
       state: s.state || "",
       district: s.district || "",
       address: s.address || "",
@@ -91,6 +101,11 @@ export default function EditStudentModal({
 
   const handleChange = (e) => {
     const { name, value } = e.target;
+    if (name === "mobile") {
+      const digits = value.replace(/\D/g, "").slice(0, 10);
+      setEditForm((prev) => ({ ...prev, mobile: digits }));
+      return;
+    }
     setEditForm((prev) => ({ ...prev, [name]: value }));
   };
 
@@ -194,7 +209,7 @@ export default function EditStudentModal({
 
               {/* Basic Info */}
               <div className="row g-3 mb-3">
-                <div className="col-md-4">
+                <div className="col-md-3">
                   <label className="form-label">Roll Number</label>
                   <input
                     type="text"
@@ -204,7 +219,17 @@ export default function EditStudentModal({
                     onChange={handleChange}
                   />
                 </div>
-                <div className="col-md-4">
+                <div className="col-md-3">
+                  <label className="form-label">Enrollment No</label>
+                  <input
+                    type="text"
+                    className="form-control"
+                    name="enrollmentNo"
+                    value={editForm.enrollmentNo || ""}
+                    onChange={handleChange}
+                  />
+                </div>
+                <div className="col-md-3">
                   <label className="form-label">Center Name</label>
                   <input
                     type="text"
@@ -214,7 +239,7 @@ export default function EditStudentModal({
                     onChange={handleChange}
                   />
                 </div>
-                <div className="col-md-4">
+                <div className="col-md-3">
                   <label className="form-label">Student Name</label>
                   <input
                     type="text"
@@ -290,13 +315,17 @@ export default function EditStudentModal({
                 </div>
                 <div className="col-md-6">
                   <label className="form-label">Mobile</label>
-                  <input
-                    type="text"
-                    className="form-control"
-                    name="mobile"
-                    value={editForm.mobile || ""}
-                    onChange={handleChange}
-                  />
+                  <div className="input-group">
+                    <span className="input-group-text">+91</span>
+                    <input
+                      type="tel"
+                      className="form-control"
+                      name="mobile"
+                      value={editForm.mobile || ""}
+                      onChange={handleChange}
+                      placeholder="10 digit number"
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -304,13 +333,17 @@ export default function EditStudentModal({
               <div className="row g-3 mb-3">
                 <div className="col-md-4">
                   <label className="form-label">State</label>
-                  <input
-                    type="text"
-                    className="form-control"
+                  <select
+                    className="form-select"
                     name="state"
                     value={editForm.state || ""}
                     onChange={handleChange}
-                  />
+                  >
+                    <option value="">Select State</option>
+                    {INDIAN_STATES.map((s) => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
                 </div>
                 <div className="col-md-4">
                   <label className="form-label">District</label>

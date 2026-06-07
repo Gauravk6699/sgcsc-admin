@@ -120,16 +120,18 @@ export default function Students() {
     setEditError("");
 
     try {
-      const payload = {
+      const rawMobile = (editForm.mobile || "").replace(/^\+91/, "");
+    const payload = {
         centerName: editForm.centerName,
         name: editForm.name,
         fatherName: editForm.fatherName,
         motherName: editForm.motherName,
         rollNumber: editForm.rollNumber,
+        enrollmentNo: editForm.enrollmentNo,
         gender: editForm.gender,
         dob: editForm.dob || null,
         email: editForm.email,
-        mobile: editForm.mobile,
+        mobile: rawMobile ? `+91${rawMobile}` : "",
         state: editForm.state,
         district: editForm.district,
         address: editForm.address,
@@ -201,6 +203,8 @@ export default function Students() {
         const fields = [
           s.name,
           s.studentName,
+          s.rollNumber,
+          s.enrollmentNo,
           s.centerName,
           s.franchiseName,
           s.instituteName,
@@ -468,7 +472,11 @@ export default function Students() {
                     <h6 className="border-bottom pb-2 mb-3">Academic Information</h6>
                     <p className="mb-1"><strong>Roll Number:</strong> {viewing.rollNumber || "-"}</p>
                     <p className="mb-1"><strong>Enrollment No:</strong> {viewing.enrollmentNo || viewing.enrollment || "-"}</p>
-                    <p className="mb-1"><strong>Course:</strong> {viewing.courseName || (viewing.course && viewing.course.title) || "-"}</p>
+                    <p className="mb-1"><strong>Course:</strong> {
+                      (Array.isArray(viewing.courses) && viewing.courses.length > 0)
+                        ? viewing.courses.map(c => c.courseName || "-").join(", ")
+                        : viewing.courseName || (viewing.course && viewing.course.title) || "-"
+                    }</p>
                     <p className="mb-1"><strong>Exam Passed:</strong> {viewing.examPassed || "-"}</p>
                     <p className="mb-1"><strong>Board:</strong> {viewing.board || "-"}</p>
                     <p className="mb-1"><strong>Marks/Grade:</strong> {viewing.marksOrGrade || "-"}</p>
@@ -495,7 +503,11 @@ export default function Students() {
                               ₹{pending}
                             </span>
                           </p>
-                          <p className="mb-1"><strong>Fees Paid:</strong> {viewing.feesPaid ? "Yes" : "No"}</p>
+                          <p className="mb-1"><strong>Fees Paid:</strong> {
+                            (Array.isArray(viewing.courses) && viewing.courses.length > 0)
+                              ? (viewing.courses.every(c => c.feesPaid) ? "Yes" : "Partial / No")
+                              : (viewing.feesPaid ? "Yes" : "No")
+                          }</p>
                         </>
                       );
                     })()}
@@ -505,7 +517,12 @@ export default function Students() {
                   <div className="col-12 mb-3">
                     <h6 className="border-bottom pb-2 mb-3">Center Information</h6>
                     <p className="mb-1"><strong>Center:</strong> {viewing.centerName || viewing.franchiseName || viewing.instituteName || viewing.center || "-"}</p>
-                    <p className="mb-1"><strong>Session:</strong> {viewing.sessionStart && viewing.sessionEnd ? `${new Date(viewing.sessionStart).toLocaleDateString('en-IN')} - ${new Date(viewing.sessionEnd).toLocaleDateString('en-IN')}` : "-"}</p>
+                    <p className="mb-1"><strong>Session:</strong> {(() => {
+                      const start = viewing.sessionStart || viewing.courses?.[0]?.sessionStart;
+                      const end = viewing.sessionEnd || viewing.courses?.[0]?.sessionEnd;
+                      if (!start && !end) return "-";
+                      return `${start ? new Date(start).toLocaleDateString('en-IN') : "-"} - ${end ? new Date(end).toLocaleDateString('en-IN') : "-"}`;
+                    })()}</p>
                   </div>
                 </div>
               </div>

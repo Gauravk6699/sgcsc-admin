@@ -130,7 +130,7 @@ export default function StudentTable({ students, onEdit, onDelete, onView }) {
         <tbody>
           {sortedStudents.length === 0 ? (
             <tr>
-              <td colSpan="10" className="text-center py-4 text-muted">
+              <td colSpan="11" className="text-center py-4 text-muted">
                 No students found.
               </td>
             </tr>
@@ -167,11 +167,11 @@ export default function StudentTable({ students, onEdit, onDelete, onView }) {
               const marksPart = s.marksOrGrade ? ` (${s.marksOrGrade})` : "";
               const examBoardMarks = `${examLine}${boardPart}${marksPart}`;
 
+              const sessionStart = s.sessionStart || s.courses?.[0]?.sessionStart;
+              const sessionEnd = s.sessionEnd || s.courses?.[0]?.sessionEnd;
               const session =
-                (s.sessionStart || s.sessionEnd) &&
-                `${formatDate(s.sessionStart)} – ${formatDate(
-                  s.sessionEnd
-                )}`;
+                (sessionStart || sessionEnd) &&
+                `${formatDate(sessionStart)} – ${formatDate(sessionEnd)}`;
 
               const photoSrc = imgUrl(s.photo || s.photoUrl);
 
