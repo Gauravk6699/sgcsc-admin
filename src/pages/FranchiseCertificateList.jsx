@@ -184,10 +184,11 @@ function FranchiseCertificateModal({ show, onClose, onSaved, initial }) {
       if (franchiseCertificateGenerator) {
         try {
           const certificateData = {
-            franchiseName: franchiseName.trim(),
+            trainingCentreName: franchiseName.trim(),
             address: address.trim(),
             applicantName: applicantName.trim(),
             atcCode: atcCode.trim(),
+            atcCode2: atcCode.trim(),
             dateOfIssue: dateOfIssue,
             dateOfRenewal: dateOfRenewal,
           };
