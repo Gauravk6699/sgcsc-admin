@@ -861,7 +861,7 @@ export default function FranchiseCreate() {
               <input
                 type="file"
                 name="certificateFile"
-                accept="image/*,application/pdf"
+                accept="image/*"
                 className="form-control"
                 onChange={handleFileChange}
               />
