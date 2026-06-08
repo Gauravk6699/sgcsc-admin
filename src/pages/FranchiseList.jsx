@@ -92,6 +92,7 @@ const emptyEdit = {
   contact: '',
   email: '',
   ownerQualification: '',
+  utrNumber: '',
   hasReception: false,
   hasStaffRoom: false,
   hasWaterSupply: false,
@@ -173,6 +174,7 @@ export default function FranchiseList() {
       contact: (f.contact || '').replace(/^\+91/, ''),
       email: f.email || '',
       ownerQualification: f.ownerQualification || '',
+      utrNumber: f.utrNumber || '',
       hasReception: f.hasReception ?? false,
       hasStaffRoom: f.hasStaffRoom ?? false,
       hasWaterSupply: f.hasWaterSupply ?? false,
@@ -638,6 +640,21 @@ export default function FranchiseList() {
                         name="email"
                         value={editForm.email}
                         onChange={handleEditChange}
+                      />
+                    </div>
+                  </div>
+
+                  {/* UTR Number */}
+                  <div className="row g-3 mb-3">
+                    <div className="col-md-12">
+                      <label className="form-label fw-semibold">
+                        UPI Transaction ID / UTR Number
+                      </label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        value={editForm.utrNumber || '—'}
+                        readOnly
                       />
                     </div>
                   </div>
