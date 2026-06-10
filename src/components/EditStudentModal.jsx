@@ -26,6 +26,8 @@ export default function EditStudentModal({
   error,
 }) {
   const [showPassword, setShowPassword] = useState(false);
+  const [photoFile, setPhotoFile] = useState(null);
+  const [photoPreview, setPhotoPreview] = useState(null);
   const [editForm, setEditForm] = useState({
     courses: [],
   });
@@ -75,6 +77,9 @@ export default function EditStudentModal({
       ];
     }
 
+    setPhotoPreview(s.photo || null);
+    setPhotoFile(null);
+
     setEditForm({
       rollNumber: s.rollNumber || "",
       enrollmentNo: s.enrollmentNo || "",
@@ -98,6 +103,20 @@ export default function EditStudentModal({
       courses: studentCourses,
     });
   }, [student]);
+
+  const handlePhotoChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      alert("Photo must be under 2MB.");
+      e.target.value = "";
+      return;
+    }
+    setPhotoFile(file);
+    const reader = new FileReader();
+    reader.onloadend = () => setPhotoPreview(reader.result);
+    reader.readAsDataURL(file);
+  };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -180,7 +199,7 @@ export default function EditStudentModal({
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    onSave(editForm);
+    onSave({ ...editForm, photoFile });
   };
 
   if (!student) return null;
@@ -206,6 +225,40 @@ export default function EditStudentModal({
                   {error}
                 </div>
               )}
+
+              {/* Photo Upload */}
+              <div className="row g-3 mb-3">
+                <div className="col-12">
+                  <label className="form-label">Student Photo</label>
+                  <div className="d-flex align-items-center gap-3">
+                    {photoPreview && (
+                      <img
+                        src={photoPreview}
+                        alt="Student"
+                        style={{
+                          width: 80,
+                          height: 80,
+                          objectFit: "cover",
+                          borderRadius: 4,
+                          border: "1px solid #dee2e6",
+                          flexShrink: 0,
+                        }}
+                      />
+                    )}
+                    <div className="flex-grow-1">
+                      <input
+                        type="file"
+                        className="form-control"
+                        accept="image/*"
+                        onChange={handlePhotoChange}
+                      />
+                      <small className="text-muted">
+                        Max 2MB. Leave empty to keep current photo.
+                      </small>
+                    </div>
+                  </div>
+                </div>
+              </div>
 
               {/* Basic Info */}
               <div className="row g-3 mb-3">

@@ -121,40 +121,68 @@ export default function Students() {
 
     try {
       const rawMobile = (editForm.mobile || "").replace(/^\+91/, "");
-    const payload = {
-        centerName: editForm.centerName,
-        name: editForm.name,
-        fatherName: editForm.fatherName,
-        motherName: editForm.motherName,
-        rollNumber: editForm.rollNumber,
-        enrollmentNo: editForm.enrollmentNo,
-        gender: editForm.gender,
-        dob: editForm.dob || null,
-        email: editForm.email,
-        mobile: rawMobile ? `+91${rawMobile}` : "",
-        state: editForm.state,
-        district: editForm.district,
-        address: editForm.address,
-        examPassed: editForm.examPassed,
-        marksOrGrade: editForm.marksOrGrade,
-        board: editForm.board,
-        passingYear: editForm.passingYear,
-        username: editForm.username,
-        ...(editForm.password && { password: editForm.password }),
-        courses: editForm.courses
-          ? editForm.courses.map((c) => ({
-              course: c.courseId || null,
-              courseName: c.courseName,
-              feeAmount: Number(c.feeAmount) || 0,
-              amountPaid: Number(c.amountPaid) || 0,
-              feesPaid: c.feesPaid || false,
-              sessionStart: c.sessionStart || null,
-              sessionEnd: c.sessionEnd || null,
-            }))
-          : [],
-      };
+      const coursesPayload = editForm.courses
+        ? editForm.courses.map((c) => ({
+            course: c.courseId || null,
+            courseName: c.courseName,
+            feeAmount: Number(c.feeAmount) || 0,
+            amountPaid: Number(c.amountPaid) || 0,
+            feesPaid: c.feesPaid || false,
+            sessionStart: c.sessionStart || null,
+            sessionEnd: c.sessionEnd || null,
+          }))
+        : [];
 
-      const res = await API.put(`/students/${id}`, payload);
+      let res;
+      if (editForm.photoFile) {
+        const fd = new FormData();
+        fd.append("centerName", editForm.centerName || "");
+        fd.append("name", editForm.name || "");
+        fd.append("fatherName", editForm.fatherName || "");
+        fd.append("motherName", editForm.motherName || "");
+        fd.append("rollNumber", editForm.rollNumber || "");
+        fd.append("enrollmentNo", editForm.enrollmentNo || "");
+        fd.append("gender", editForm.gender || "");
+        fd.append("dob", editForm.dob || "");
+        fd.append("email", editForm.email || "");
+        fd.append("mobile", rawMobile ? `+91${rawMobile}` : "");
+        fd.append("state", editForm.state || "");
+        fd.append("district", editForm.district || "");
+        fd.append("address", editForm.address || "");
+        fd.append("examPassed", editForm.examPassed || "");
+        fd.append("marksOrGrade", editForm.marksOrGrade || "");
+        fd.append("board", editForm.board || "");
+        fd.append("passingYear", editForm.passingYear || "");
+        fd.append("username", editForm.username || "");
+        if (editForm.password) fd.append("password", editForm.password);
+        fd.append("courses", JSON.stringify(coursesPayload));
+        fd.append("photo", editForm.photoFile);
+        res = await API.put(`/students/${id}`, fd);
+      } else {
+        const payload = {
+          centerName: editForm.centerName,
+          name: editForm.name,
+          fatherName: editForm.fatherName,
+          motherName: editForm.motherName,
+          rollNumber: editForm.rollNumber,
+          enrollmentNo: editForm.enrollmentNo,
+          gender: editForm.gender,
+          dob: editForm.dob || null,
+          email: editForm.email,
+          mobile: rawMobile ? `+91${rawMobile}` : "",
+          state: editForm.state,
+          district: editForm.district,
+          address: editForm.address,
+          examPassed: editForm.examPassed,
+          marksOrGrade: editForm.marksOrGrade,
+          board: editForm.board,
+          passingYear: editForm.passingYear,
+          username: editForm.username,
+          ...(editForm.password && { password: editForm.password }),
+          courses: coursesPayload,
+        };
+        res = await API.put(`/students/${id}`, payload);
+      }
       const updated = res.data;
       const updatedStudent =
         updated && updated.data && updated.success ? updated.data : updated;
