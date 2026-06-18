@@ -242,31 +242,38 @@ export default function FeeReceipt() {
 
   const handlePrint = () => {
     const printContent = printRef.current;
-    
-    // Create a new window for printing
+    if (!printContent) return;
+
+    // Pull CSS out of the <style> tag that lives inside printRef, then move it
+    // to the <head> of the print window — browsers don't reliably apply <style>
+    // elements that appear in <body> after document.write.
+    const styleEl = printContent.querySelector('style');
+    const receiptCSS = styleEl ? (styleEl.textContent || styleEl.innerHTML) : '';
+
+    const receiptDiv = printContent.querySelector('.receipt');
+    const receiptHTML = receiptDiv ? receiptDiv.outerHTML : printContent.innerHTML;
+
     const printWindow = window.open('', '_blank');
-    printWindow.document.write(`
-      <!DOCTYPE html>
-      <html lang="en">
-      <head>
-        <meta charset="UTF-8">
-        <title>Fee Receipt</title>
-        <style>
-          ${document.querySelector('style')?.innerHTML || ''}
-          body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-        </style>
-      </head>
-      <body>
-        ${printContent.innerHTML}
-      </body>
-      </html>
-    `);
+    printWindow.document.write(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Fee Receipt</title>
+  <style>
+    ${receiptCSS}
+    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; margin: 0; }
+  </style>
+</head>
+<body>
+  ${receiptHTML}
+</body>
+</html>`);
     printWindow.document.close();
     printWindow.focus();
     setTimeout(() => {
       printWindow.print();
       printWindow.close();
-    }, 250);
+    }, 500);
   };
 
   const formatDate = (dateStr) => {
