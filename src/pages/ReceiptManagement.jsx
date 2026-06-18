@@ -85,70 +85,90 @@ export default function ReceiptManagement() {
   };
 
   const printReceipt = (receipt) => {
-    // Open print view with receipt data
+    const monthlyRows = (receipt.monthlyPayments || []).map(p => `
+      <tr>
+        <td>${p.month || ''}</td>
+        <td>${p.date || ''}</td>
+        <td>${p.paid || 0}</td>
+        <td>${p.due || 0}</td>
+      </tr>`).join('');
+
+    const totalPaid = receipt.totalPaid || 0;
+    const totalDue  = receipt.totalDue  || 0;
+
     const printWindow = window.open('', '_blank');
-    printWindow.document.write(`
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>Fee Receipt - ${receipt.receiptNo}</title>
-          <style>
-            body { font-family: Arial, sans-serif; margin: 20px; }
-            .receipt { border: 2px solid #25D366; padding: 20px; max-width: 600px; margin: 0 auto; }
-            .header { text-align: center; margin-bottom: 20px; }
-            .details { margin-bottom: 20px; }
-            .table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-            .table th, .table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-            .table th { background-color: #f2f2f2; }
-          </style>
-        </head>
-        <body>
-          <div class="receipt">
-            <div class="header">
-              <h2>SGCSC Fee Receipt</h2>
-              <p><strong>Receipt No:</strong> ${receipt.receiptNo}</p>
-            </div>
-            <div class="details">
-              <p><strong>Student Name:</strong> ${receipt.studentName}</p>
-              <p><strong>Enrollment No:</strong> ${receipt.enrollmentNo}</p>
-              <p><strong>Course:</strong> ${receipt.courseName}</p>
-              <p><strong>Session:</strong> ${receipt.sessionStart} - ${receipt.sessionEnd}</p>
-              <p><strong>Total Paid:</strong> ₹${receipt.totalPaid}</p>
-              <p><strong>Total Due:</strong> ₹${receipt.totalDue}</p>
-              <p><strong>Payment Method:</strong> ${receipt.paymentMethod}</p>
-              <p><strong>Date:</strong> ${new Date(receipt.paymentDate).toLocaleDateString()}</p>
-            </div>
-            ${receipt.monthlyPayments && receipt.monthlyPayments.length > 0 ? `
-            <table class="table">
-              <thead>
-                <tr>
-                  <th>Month</th>
-                  <th>Date</th>
-                  <th>Paid</th>
-                  <th>Due</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${receipt.monthlyPayments.map(payment => `
-                  <tr>
-                    <td>${payment.month}</td>
-                    <td>${payment.date}</td>
-                    <td>₹${payment.paid}</td>
-                    <td>₹${payment.due}</td>
-                    <td>${payment.status}</td>
-                  </tr>
-                `).join('')}
-              </tbody>
-            </table>
-            ` : ''}
-          </div>
-          <script>
-            window.print();
-          </script>
-        </body>
-      </html>
-    `);
+    printWindow.document.write(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Fee Receipt - ${receipt.receiptNo}</title>
+  <style>
+    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; margin: 0; font-family: Arial, sans-serif; }
+    .receipt {
+      width: 490px; margin: 20px auto; background: #fff;
+      border: 4px solid #25D366; padding: 8px; font-size: 12px;
+    }
+    .center-name {
+      width: 100%; margin: 5px auto 2px auto; background: #25D366;
+      color: #fff; text-align: center; font-weight: bold; font-size: 16px;
+      padding: 5px 0; border-radius: 10px; letter-spacing: 2px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+    .center-address { text-align: center; font-size: 13px; margin-bottom: 10px; color: #444; }
+    .details { margin: 0 8px; }
+    .detail-row { margin-bottom: 3px; }
+    .label { display: inline-block; width: 110px; font-weight: bold; }
+    .fee-title {
+      margin: 8px auto; width: 75%; background: #25D366; color: #fff;
+      text-align: center; font-weight: bold; padding: 8px 0;
+      border-radius: 30px; letter-spacing: 1px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+    table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 6px; }
+    th, td { border: 1px solid #000; padding: 3px; text-align: center; }
+    th { background: #eaeaea; }
+    .footer { margin-top: 6px; font-size: 10px; }
+  </style>
+</head>
+<body>
+  <div class="receipt">
+    <div class="center-name">
+      <hr style="margin:2px 0;opacity:0.5"/>
+      SHREE GANPATI COMPUTER AND STUDY CENTRE
+      <hr style="margin:2px 0;opacity:0.5"/>
+    </div>
+    <div class="center-address"><u>RAIPUR CHIRAIYAKOT MAU</u></div>
+
+    <div class="details">
+      <div class="detail-row"><span class="label">Student's Name</span>: ${receipt.studentName || 'N/A'}</div>
+      <div class="detail-row"><span class="label">Enrollment No</span>: ${receipt.enrollmentNo || 'N/A'}</div>
+      <div class="detail-row"><span class="label">Course Name</span>: ${receipt.courseName || 'N/A'}</div>
+      <div class="detail-row"><span class="label">Session</span>: ${receipt.sessionStart || ''} – ${receipt.sessionEnd || ''}</div>
+      <div class="detail-row"><span class="label">Receipt No</span>: ${receipt.receiptNo || ''}</div>
+      <div class="detail-row"><span class="label">Payment Method</span>: ${receipt.paymentMethod || 'Cash'}</div>
+      <div class="detail-row"><span class="label">Date</span>: ${receipt.paymentDate ? new Date(receipt.paymentDate).toLocaleDateString('en-GB').replace(/\//g, '-') : ''}</div>
+      <div class="fee-title">STUDENT'S FEE RECEIPT</div>
+    </div>
+
+    <table>
+      <thead>
+        <tr><th>Month</th><th>Date</th><th>Paid</th><th>Due</th></tr>
+      </thead>
+      <tbody>
+        ${monthlyRows}
+        <tr>
+          <th>Total</th><th>-</th><th>${totalPaid}</th><th>${totalDue}</th>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="footer">
+      Received By: ............................................................ All fees are non-refundable
+    </div>
+  </div>
+  <script>window.print();</script>
+</body>
+</html>`);
     printWindow.document.close();
   };
 
