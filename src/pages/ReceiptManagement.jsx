@@ -88,11 +88,12 @@ export default function ReceiptManagement() {
   const printReceipt = (receipt) => {
     printReceiptWindow({
       studentName:     receipt.studentName,
+      fatherName:      receipt.student?.fatherName  || null,
+      dob:             receipt.student?.dob          || null,
+      photo:           receipt.student?.photo        || null,
       courseName:      receipt.courseName,
       sessionStart:    receipt.sessionStart,
       receiptNo:       receipt.receiptNo,
-      paymentMethod:   receipt.paymentMethod,
-      paymentDate:     receipt.paymentDate,
       monthlyPayments: receipt.monthlyPayments || [],
       totalPaid:       receipt.totalPaid,
       totalDue:        receipt.totalDue,
