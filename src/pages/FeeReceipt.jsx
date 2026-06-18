@@ -1,6 +1,7 @@
 // src/pages/FeeReceipt.jsx
 import { useEffect, useState, useRef } from "react";
 import API from "../api/axiosInstance";
+import { RECEIPT_CSS, printReceiptWindow } from "../utils/receiptPrint";
 
 export default function FeeReceipt() {
   const [students, setStudents] = useState([]);
@@ -241,39 +242,29 @@ export default function FeeReceipt() {
   };
 
   const handlePrint = () => {
-    const printContent = printRef.current;
-    if (!printContent) return;
-
-    // Pull CSS out of the <style> tag that lives inside printRef, then move it
-    // to the <head> of the print window — browsers don't reliably apply <style>
-    // elements that appear in <body> after document.write.
-    const styleEl = printContent.querySelector('style');
-    const receiptCSS = styleEl ? (styleEl.textContent || styleEl.innerHTML) : '';
-
-    const receiptDiv = printContent.querySelector('.receipt');
-    const receiptHTML = receiptDiv ? receiptDiv.outerHTML : printContent.innerHTML;
-
-    const printWindow = window.open('', '_blank');
-    printWindow.document.write(`<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>Fee Receipt</title>
-  <style>
-    ${receiptCSS}
-    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; margin: 0; }
-  </style>
-</head>
-<body>
-  ${receiptHTML}
-</body>
-</html>`);
-    printWindow.document.close();
-    printWindow.focus();
-    setTimeout(() => {
-      printWindow.print();
-      printWindow.close();
-    }, 500);
+    if (!selectedStudent) return;
+    const { totalPaid, totalDue } = calculateTotals();
+    const monthlyPayments = selectedMonths.map(index => {
+      const data = monthlyData[index] || {};
+      return {
+        month: months[index],
+        date:  data.date || '-',
+        paid:  data.paid || 0,
+        due:   data.due  || 0,
+      };
+    });
+    printReceiptWindow({
+      studentName:  selectedStudent.name,
+      fatherName:   selectedStudent.fatherName,
+      dob:          selectedStudent.dob,
+      photo:        selectedStudent.photo,
+      courseName:   selectedCourse?.courseName || selectedStudent.courseName,
+      sessionStart,
+      receiptNo,
+      monthlyPayments,
+      totalPaid,
+      totalDue,
+    });
   };
 
   const formatDate = (dateStr) => {
@@ -565,88 +556,7 @@ export default function FeeReceipt() {
 
       {/* Fee Receipt Preview */}
       <div ref={printRef}>
-        <style>{`
-          .receipt {
-            width: 490px;
-            margin: 20px auto;
-            background: #fff;
-            border: 4px solid #25D366;
-            padding: 8px;
-            font-size: 12px;
-            position: relative;
-          }
-          .center-name {
-            width: 100%;
-            margin: 5px auto 2px auto;
-            background: #25D366;
-            color: #fff;
-            text-align: center;
-            font-weight: bold;
-            font-size: 16px;
-            padding: 5px 0;
-            border-radius: 10px;
-            letter-spacing: 2px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-          }
-          .center-address {
-            text-align: center;
-            font-size: 13px;
-            margin-bottom: 10px;
-            color: #444;
-          }
-          .student {
-            display: flex;
-            justify-content: space-between;
-          }
-          .details {
-            flex: 1;
-            margin: 0 8px;
-          }
-          .row {
-            margin-bottom: 3px;
-          }
-          .label {
-            display: inline-block;
-            width: 110px;
-            font-weight: bold;
-          }
-          .fee-title {
-            margin: 8px auto;
-            width: 75%;
-            background: #25D366;
-            color: #fff;
-            text-align: center;
-            font-weight: bold;
-            padding: 8px 0;
-            border-radius: 30px;
-            letter-spacing: 1px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-          }
-          .photo img {
-            width: 90px;
-            height: 90px;
-            border: 1px solid #000;
-            object-fit: cover;
-          }
-          table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 11px;
-            margin-top: 6px;
-          }
-          th, td {
-            border: 1px solid #000;
-            padding: 3px;
-            text-align: center;
-          }
-          th {
-            background: #eaeaea;
-          }
-          .footer {
-            margin-top: 6px;
-            font-size: 10px;
-          }
-        `}</style>
+        <style>{RECEIPT_CSS}</style>
         
         {selectedStudent ? (
           <div className="receipt">
