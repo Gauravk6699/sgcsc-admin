@@ -111,7 +111,7 @@ function ProtectedLayout({ children }) {
   return (
     <div className="d-flex">
       <Sidebar />
-      <div className="flex-grow-1">
+      <div className="flex-grow-1" style={{ minWidth: 0 }}>
         <Navbar />
         {children}
       </div>
