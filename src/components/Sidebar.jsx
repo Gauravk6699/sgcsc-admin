@@ -28,10 +28,24 @@ export default function Sidebar() {
 
   return (
     <div
-      className="bg-light border-end vh-100 d-flex flex-column p-3"
+      className="offcanvas-lg offcanvas-start bg-light border-end"
+      tabIndex="-1"
+      id="adminSidebar"
       style={{ width: "260px" }}
     >
-      <h2 className="fs-4 fw-bold mb-4 text-primary">Admin Panel</h2>
+      <div className="offcanvas-header d-lg-none">
+        <h2 className="offcanvas-title fs-4 fw-bold text-primary">Admin Panel</h2>
+        <button
+          type="button"
+          className="btn-close"
+          data-bs-dismiss="offcanvas"
+          data-bs-target="#adminSidebar"
+          aria-label="Close"
+        ></button>
+      </div>
+
+      <div className="offcanvas-body d-flex flex-column p-3 vh-100">
+      <h2 className="fs-4 fw-bold mb-4 text-primary d-none d-lg-block">Admin Panel</h2>
 
       <ul className="nav nav-pills flex-column mb-auto">
 
@@ -309,6 +323,7 @@ export default function Sidebar() {
         </li>
 
       </ul>
+      </div>
     </div>
   );
 }

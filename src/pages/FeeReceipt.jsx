@@ -555,6 +555,7 @@ export default function FeeReceipt() {
       </div>
 
       {/* Fee Receipt Preview */}
+      <div className="doc-preview-wrapper">
       <div ref={printRef}>
         <style>{RECEIPT_CSS}</style>
         
@@ -647,6 +648,7 @@ export default function FeeReceipt() {
             </div>
           </div>
         )}
+      </div>
       </div>
     </div>
   );

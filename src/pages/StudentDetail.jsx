@@ -132,20 +132,22 @@ export default function StudentDetail() {
               <div className="card p-3">
                 <h5>Results</h5>
                 {results.length === 0 ? <div className="text-muted">No results yet</div> : (
-                  <table className="table">
-                    <thead><tr><th>Exam</th><th>Course</th><th>Sem</th><th>Marks</th><th>Declared</th></tr></thead>
-                    <tbody>
-                      {results.map(r => (
-                        <tr key={r._id}>
-                          <td>{r.exam || '-'}</td>
-                          <td>{(r.course && r.course.title) || r.course || '-'}</td>
-                          <td>{r.semester}</td>
-                          <td>{r.marks}</td>
-                          <td>{r.declared ? 'Yes' : 'No'}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                  <div className="table-responsive">
+                    <table className="table">
+                      <thead><tr><th>Exam</th><th>Course</th><th>Sem</th><th>Marks</th><th>Declared</th></tr></thead>
+                      <tbody>
+                        {results.map(r => (
+                          <tr key={r._id}>
+                            <td>{r.exam || '-'}</td>
+                            <td>{(r.course && r.course.title) || r.course || '-'}</td>
+                            <td>{r.semester}</td>
+                            <td>{r.marks}</td>
+                            <td>{r.declared ? 'Yes' : 'No'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 )}
               </div>
             </>

@@ -31,3 +31,11 @@
 .modal-xl {
   max-width: 1140px;
 }
+
+/* Non-destructive horizontal-scroll wrapper for fixed-size print/PDF preview
+   markup (certificates, ID cards, admit cards, marksheets, receipts). Never
+   apply styles to the inner preview itself, only this wrapper. */
+.doc-preview-wrapper {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}

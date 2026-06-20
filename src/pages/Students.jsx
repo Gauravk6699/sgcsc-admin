@@ -280,7 +280,7 @@ export default function Students() {
       {/* Filters */}
       <div className="card mb-4">
         <div className="card-body d-flex flex-wrap gap-3 align-items-end">
-          <div style={{ minWidth: 240 }}>
+          <div style={{ flex: "1 1 160px", minWidth: 0 }}>
             <label className="form-label">Search</label>
             <input
               className="form-control"
@@ -290,7 +290,7 @@ export default function Students() {
             />
           </div>
 
-          <div style={{ minWidth: 200 }}>
+          <div style={{ flex: "1 1 160px", minWidth: 0 }}>
             <label className="form-label">Center</label>
             <select
               className="form-select"
@@ -465,7 +465,7 @@ export default function Students() {
       {/* View Details Modal - Student Information */}
       {viewing && (
         <div className="modal d-block" style={{ backgroundColor: "rgba(0,0,0,0.5)" }}>
-          <div className="modal-dialog modal-dialog-centered modal-lg">
+          <div className="modal-dialog modal-dialog-centered modal-lg modal-fullscreen-sm-down">
             <div className="modal-content">
               <div className="modal-header">
                 <h5 className="modal-title">

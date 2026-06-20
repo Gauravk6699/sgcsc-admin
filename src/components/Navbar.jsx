@@ -1,5 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import { FaBars } from 'react-icons/fa';
 
 export default function Navbar() {
   const navigate = useNavigate();
@@ -14,6 +15,16 @@ export default function Navbar() {
   return (
     <nav className="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm px-4">
       <div className="container-fluid">
+        <button
+          type="button"
+          className="btn btn-outline-light btn-sm me-3 d-lg-none"
+          data-bs-toggle="offcanvas"
+          data-bs-target="#adminSidebar"
+          aria-controls="adminSidebar"
+          aria-label="Toggle sidebar"
+        >
+          <FaBars />
+        </button>
         <span className="navbar-brand fw-bold">Admin Panel</span>
         <div className="d-flex">
           <button

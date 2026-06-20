@@ -206,7 +206,7 @@ export default function EditStudentModal({
 
   return (
     <div className="modal d-block" tabIndex="-1">
-      <div className="modal-dialog modal-xl modal-dialog-scrollable">
+      <div className="modal-dialog modal-xl modal-dialog-scrollable modal-fullscreen-sm-down">
         <div className="modal-content">
           <form onSubmit={handleSubmit}>
             <div className="modal-header">
