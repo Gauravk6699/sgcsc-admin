@@ -1,5 +1,5 @@
 // src/App.jsx
-import React, { Suspense, lazy } from "react";
+import React, { Suspense, lazy, useEffect } from "react";
 import {
   BrowserRouter as Router,
   Routes,
@@ -97,6 +97,13 @@ function LoadingFallback() {
       </div>
     </div>
   );
+}
+
+function Logout() {
+  useEffect(() => {
+    localStorage.clear();
+  }, []);
+  return <Navigate to="/login" replace />;
 }
 
 /* Layout wrapper for all authenticated pages */
@@ -573,15 +580,7 @@ export default function App() {
           />
 
           {/* Logout */}
-          <Route
-            path="/logout"
-            element={
-              (() => {
-                localStorage.clear();
-                return <Navigate to="/login" replace />;
-              })()
-            }
-          />
+          <Route path="/logout" element={<Logout />} />
 
           {/* 404 */}
           <Route
