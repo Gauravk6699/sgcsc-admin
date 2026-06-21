@@ -162,14 +162,76 @@ export function buildReceiptHTML(data) {
     </div>`;
 }
 
-/** Open a print window, inject CSS into <head>, and trigger print. */
+// Wait for any images in the doc to finish loading (or fail/timeout) before
+// printing, so a slow connection can't print before the photo arrives.
+function printWhenReady(doc, triggerPrint, maxWaitMs = 3000) {
+  const imgs = Array.from(doc.images || []);
+  if (imgs.length === 0) {
+    triggerPrint();
+    return;
+  }
+  let remaining = imgs.length;
+  let done = false;
+  const finish = () => {
+    if (done) return;
+    done = true;
+    triggerPrint();
+  };
+  const onOne = () => {
+    remaining -= 1;
+    if (remaining <= 0) finish();
+  };
+  imgs.forEach((img) => {
+    if (img.complete) onOne();
+    else {
+      img.addEventListener('load', onOne, { once: true });
+      img.addEventListener('error', onOne, { once: true });
+    }
+  });
+  setTimeout(finish, maxWaitMs);
+}
+
+/**
+ * Print the receipt via a hidden same-page <iframe> rather than a popup
+ * window. window.open()-based printing is blocked far more aggressively on
+ * mobile browsers (especially iOS Safari and in-app/webview browsers) than
+ * on desktop, which throws once code tries to write into the null window
+ * that comes back. An iframe needs no popup permission at all and is the
+ * standard reliable fix for "print this content" on mobile.
+ */
 export function printReceiptWindow(data) {
   const html = buildReceiptHTML(data);
-  const win  = window.open('', '_blank');
-  win.document.write(`<!DOCTYPE html>
+
+  const iframe = document.createElement('iframe');
+  iframe.style.position = 'fixed';
+  iframe.style.right = '0';
+  iframe.style.bottom = '0';
+  iframe.style.width = '0';
+  iframe.style.height = '0';
+  iframe.style.border = '0';
+  document.body.appendChild(iframe);
+
+  const cleanup = () => {
+    if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
+  };
+
+  const triggerPrint = () => {
+    try {
+      iframe.contentWindow.focus();
+      iframe.contentWindow.print();
+    } finally {
+      // Leave the iframe in place long enough for the print dialog to read it.
+      setTimeout(cleanup, 1000);
+    }
+  };
+
+  const doc = iframe.contentWindow.document;
+  doc.open();
+  doc.write(`<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Fee Receipt</title>
   <style>
     ${RECEIPT_CSS}
@@ -178,7 +240,7 @@ export function printReceiptWindow(data) {
 </head>
 <body>${html}</body>
 </html>`);
-  win.document.close();
-  win.focus();
-  setTimeout(() => { win.print(); win.close(); }, 500);
+  doc.close();
+
+  printWhenReady(doc, triggerPrint);
 }

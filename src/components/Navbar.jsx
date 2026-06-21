@@ -1,5 +1,5 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { FaBars } from 'react-icons/fa';
 
 export default function Navbar() {
@@ -17,7 +17,7 @@ export default function Navbar() {
       <div className="container-fluid">
         <button
           type="button"
-          className="btn btn-outline-light btn-sm me-3 d-lg-none"
+          className="btn btn-outline-light btn-sm me-3 d-md-none"
           data-bs-toggle="offcanvas"
           data-bs-target="#adminSidebar"
           aria-controls="adminSidebar"
@@ -25,7 +25,9 @@ export default function Navbar() {
         >
           <FaBars />
         </button>
-        <span className="navbar-brand fw-bold">Admin Panel</span>
+        <Link to="/dashboard" className="navbar-brand fw-bold text-white text-decoration-none">
+          Admin Panel
+        </Link>
         <div className="d-flex">
           <button
             onClick={handleLogout}

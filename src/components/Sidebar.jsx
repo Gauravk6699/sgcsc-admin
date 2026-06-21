@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { NavLink } from "react-router-dom";
 import {
+  FaHome,
   FaBuilding,
   FaUserGraduate,
   FaBook,
@@ -28,12 +29,12 @@ export default function Sidebar() {
 
   return (
     <div
-      className="offcanvas-lg offcanvas-start bg-light border-end"
+      className="offcanvas-md offcanvas-start bg-light border-end"
       tabIndex="-1"
       id="adminSidebar"
       style={{ width: "260px" }}
     >
-      <div className="offcanvas-header d-lg-none">
+      <div className="offcanvas-header d-md-none">
         <h2 className="offcanvas-title fs-4 fw-bold text-primary">Admin Panel</h2>
         <button
           type="button"
@@ -45,9 +46,24 @@ export default function Sidebar() {
       </div>
 
       <div className="offcanvas-body d-flex flex-column p-3 vh-100">
-      <h2 className="fs-4 fw-bold mb-4 text-primary d-none d-lg-block">Admin Panel</h2>
+      <h2 className="fs-4 fw-bold mb-4 text-primary d-none d-md-block">Admin Panel</h2>
 
       <ul className="nav nav-pills flex-column mb-auto">
+
+        {/* Dashboard */}
+        <li className="nav-item mb-2">
+          <NavLink
+            to="/dashboard"
+            className={({ isActive }) =>
+              `nav-link d-flex align-items-center gap-2 ${
+                isActive ? "active bg-primary text-white" : "text-dark"
+              } rounded py-2`
+            }
+          >
+            <FaHome />
+            Dashboard
+          </NavLink>
+        </li>
 
         {/* Franchise */}
         <li className="nav-item mb-2">
