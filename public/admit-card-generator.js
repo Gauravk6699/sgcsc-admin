@@ -27,7 +27,7 @@ var AdmitCardGenerator = (() => {
       studentName:       { x: 33,   y: 30.3,   font: '120px serif', color: '#000000', align: 'left', maxWidth: 70 },
       fatherName:        { x: 33,   y: 32.2, font: '120px serif', color: '#000000', align: 'left', maxWidth: 70 },
       motherName:        { x: 33,   y: 34.5,   font: '120px serif', color: '#000000', align: 'left', maxWidth: 70 },
-      courseName:        { x: 28,   y: 40.9,   font: '120px serif', color: '#000000', align: 'left', maxWidth: 92 },
+      courseName:        { x: 28,   y: 40.9,   font: '120px serif', color: '#000000', align: 'left', maxWidth: 92, minFont: 24 },
       instituteName:     { x: 28,   y: 47.7,   font: '120px serif', color: '#000000', align: 'left', maxWidth: 92 },
       examCenterAddress: { x: 28,   y: 53,   font: '120px serif', color: '#000000', align: 'left', maxWidth: 92 },
       examDate:          { x: 43,   y: 57.8, font: '120px serif', color: '#000000', align: 'left' },
@@ -70,7 +70,7 @@ var AdmitCardGenerator = (() => {
   // since the actual typeface a browser substitutes for a generic family
   // like "serif" varies across devices/OSes and can render wider than expected.
   const MIN_FONT_PX = 40;
-  function _fitFont(text, font, maxWidthPx) {
+  function _fitFont(text, font, maxWidthPx, minFontPx) {
     const match = /^(\d+(?:\.\d+)?)px(.*)$/.exec(font);
     if (!match) return font;
     const baseSize = parseFloat(match[1]);
@@ -78,7 +78,7 @@ var AdmitCardGenerator = (() => {
     _ctx.font = font;
     const width = _ctx.measureText(text).width;
     if (width <= maxWidthPx || width === 0) return font;
-    const fitSize = Math.max(MIN_FONT_PX, Math.floor(baseSize * (maxWidthPx / width)));
+    const fitSize = Math.max(minFontPx, Math.floor(baseSize * (maxWidthPx / width)));
     return `${fitSize}px${rest}`;
   }
 
@@ -87,14 +87,26 @@ var AdmitCardGenerator = (() => {
     const W = _canvas.width, H = _canvas.height;
     _ctx.save();
     let font = field.font;
+    const x = _pct(field.x, W);
+    const y = _pct(field.y, H);
+    let maxWidthPx = null;
     if (field.maxWidth) {
-      const maxWidthPx = _pct(field.maxWidth, W) - _pct(field.x, W);
-      font = _fitFont(text, field.font, maxWidthPx);
+      maxWidthPx = _pct(field.maxWidth, W) - x;
+      font = _fitFont(text, field.font, maxWidthPx, field.minFont || MIN_FONT_PX);
     }
     _ctx.font      = font;
     _ctx.fillStyle = field.color;
     _ctx.textAlign = field.align || 'left';
-    _ctx.fillText(text, _pct(field.x, W), _pct(field.y, H));
+    if (maxWidthPx) {
+      // Hard backstop: even if the font-shrink estimate is off (e.g. a mobile
+      // browser substitutes a wider "serif" than measureText predicted), no
+      // pixel can render past the field's box once this clip is applied.
+      const fontPx = parseFloat(font) || 0;
+      _ctx.beginPath();
+      _ctx.rect(x, y - fontPx * 0.85, maxWidthPx, fontPx * 1.2);
+      _ctx.clip();
+    }
+    _ctx.fillText(text, x, y);
     _ctx.restore();
   }
 
