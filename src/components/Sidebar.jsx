@@ -10,6 +10,7 @@ import {
   FaClipboardList,
   FaIdCard,
   FaCertificate,
+  FaMoneyBillWave,
   FaCog,
   FaChevronDown,
   FaChevronRight,
@@ -120,8 +121,29 @@ export default function Sidebar() {
               <li className="mb-1">
                 <NavLink to="/students" end className={subLinkClass}>Student List</NavLink>
               </li>
+            </ul>
+          )}
+        </li>
+
+        {/* Fee */}
+        <li className="nav-item mb-2">
+          <button
+            type="button"
+            className="btn btn-toggle w-100 text-start d-flex justify-content-between align-items-center text-dark"
+            onClick={() => toggleMenu("fee")}
+          >
+            <span className="d-flex align-items-center gap-2">
+              <FaMoneyBillWave />
+              Fee
+            </span>
+            {openMenu === "fee" ? <FaChevronDown /> : <FaChevronRight />}
+          </button>
+          {openMenu === "fee" && (
+            <ul className="btn-toggle-nav list-unstyled ps-4 pt-2 pb-1">
               <li className="mb-1">
                 <NavLink to="/fee-receipt" className={subLinkClass}>Fee Receipt</NavLink>
+              </li>
+              <li className="mb-1">
                 <NavLink to="/receipt-management" className={subLinkClass}>Receipt Management</NavLink>
               </li>
             </ul>
