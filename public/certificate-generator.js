@@ -22,12 +22,12 @@ var CertificateGenerator = (() => {
       // centerName is the ONE "ATC-:" row on the template (y:52.7).
       // atcName is NOT a separate visual field — it is only an alias in the data layer.
       // Drawing it would print the org name a second time over the course-name row.
-      centerName:          { x: 18,   y: 52.7, font: '160px serif', color: '#000000', align: 'left'   },
-      studentNameCombined: { x: 50,   y: 49,   font: '160px serif', color: '#000000', align: 'center' },
-      courseName:          { x: 50,   y: 58.5, font: '160px serif', color: '#000000', align: 'center' },
+      centerName:          { x: 18,   y: 52.7, font: '160px serif', color: '#000000', align: 'left',   maxWidth: 70 },
+      studentNameCombined: { x: 50,   y: 49,   font: '160px serif', color: '#000000', align: 'center', maxWidth: 80 },
+      courseName:          { x: 50,   y: 58.5, font: '160px serif', color: '#000000', align: 'center', maxWidth: 70 },
       grade:               { x: 56.5, y: 55.5, font: '160px serif', color: '#000000', align: 'left'   },
       gradeExtra:          { x: 80,   y: 76.3, font: '160px serif', color: '#000000', align: 'left'   },
-      courseDuration:      { x: 54,   y: 61.5, font: '160px serif', color: '#000000', align: 'left'   },
+      courseDuration:      { x: 54,   y: 61.5, font: '160px serif', color: '#000000', align: 'left',   maxWidth: 40 },
       coursePeriodFrom:    { x: 41.5, y: 64.3, font: '156px serif', color: '#000000', align: 'left'   },
       coursePeriodTo:      { x: 61,   y: 64.3, font: '156px serif', color: '#000000', align: 'left'   },
       certificateNumber:   { x: 23,   y: 93,   font: '100px serif', color: '#000000', align: 'left'   },
@@ -135,14 +135,50 @@ var CertificateGenerator = (() => {
     }
   }
 
+  // Shrinks `font` so `text` measures within maxWidthPx — the actual typeface a
+  // browser substitutes for a generic family like "serif" varies across
+  // devices/OSes and can render wider than expected.
+  const MIN_FONT_PX = 50;
+  function _fitFont(text, font, maxWidthPx, minFontPx) {
+    const match = /^(\d+(?:\.\d+)?)px(.*)$/.exec(font);
+    if (!match) return font;
+    const baseSize = parseFloat(match[1]);
+    const rest = match[2];
+    _ctx.font = font;
+    const width = _ctx.measureText(text).width;
+    if (width <= maxWidthPx || width === 0) return font;
+    const fitSize = Math.max(minFontPx, Math.floor(baseSize * (maxWidthPx / width)));
+    return `${fitSize}px${rest}`;
+  }
+
   function _drawField(field, text) {
     if (!text || !_ctx) return;
     const W = _canvas.width, H = _canvas.height;
     _ctx.save();
-    _ctx.font        = field.font;
+    let font = field.font;
+    const x = _pct(field.x, W);
+    const y = _pct(field.y, H);
+    const align = field.align || 'left';
+    let maxWidthPx = null;
+    let boxX = x;
+    if (field.maxWidth) {
+      maxWidthPx = _pct(field.maxWidth, W);
+      font = _fitFont(text, field.font, maxWidthPx, field.minFont || MIN_FONT_PX);
+      if (align === 'center') boxX = x - maxWidthPx / 2;
+      else if (align === 'right') boxX = x - maxWidthPx;
+    }
+    _ctx.font        = font;
     _ctx.fillStyle   = field.color;
-    _ctx.textAlign   = field.align || 'left';
-    _ctx.fillText(text, _pct(field.x, W), _pct(field.y, H));
+    _ctx.textAlign   = align;
+    if (maxWidthPx) {
+      // Hard backstop: even if the font-shrink estimate is off, no pixel can
+      // render past the field's box once this clip is applied.
+      const fontPx = parseFloat(font) || 0;
+      _ctx.beginPath();
+      _ctx.rect(boxX, y - fontPx * 0.85, maxWidthPx, fontPx * 1.2);
+      _ctx.clip();
+    }
+    _ctx.fillText(text, x, y);
     _ctx.restore();
   }
 

@@ -17,18 +17,18 @@
   const CONFIG = {
     templatePath: 'id-card-template.jpeg',
     fields: {
-      studentName:    { x: 49,   y: 49,   font: 'bold 82px serif',  color: '#000000', align: 'center' },
+      studentName:    { x: 49,   y: 49,   font: 'bold 82px serif',  color: '#000000', align: 'center', maxWidth: 80 },
       sessionFrom:    { x: 49,   y: 28,   font: '60px serif',  color: '#000000', align: 'left'   },
       sessionTo:      { x: 59,   y: 28,   font: '60px serif',  color: '#000000', align: 'left'   },
       photo:          { x: 35,   y: 29.3, width: 30, height: 17 },
-      fatherName:     { x: 51,   y: 55.8, font: '80px serif',  color: '#000000', align: 'left'   },
-      motherName:     { x: 51,   y: 59.5, font: '80px serif',  color: '#000000', align: 'left'   },
-      enrollmentNo:   { x: 51,   y: 63,   font: '80px serif',  color: '#000000', align: 'left'   },
+      fatherName:     { x: 51,   y: 55.8, font: '80px serif',  color: '#000000', align: 'left',   maxWidth: 95 },
+      motherName:     { x: 51,   y: 59.5, font: '80px serif',  color: '#000000', align: 'left',   maxWidth: 95 },
+      enrollmentNo:   { x: 51,   y: 63,   font: '80px serif',  color: '#000000', align: 'left',   maxWidth: 95 },
       dateOfBirth:    { x: 51,   y: 66.7, font: '80px serif',  color: '#000000', align: 'left'   },
-      contactNo:      { x: 51,   y: 70,   font: '80px serif',  color: '#000000', align: 'left'   },
+      contactNo:      { x: 51,   y: 70,   font: '80px serif',  color: '#000000', align: 'left',   maxWidth: 95 },
       address: { x: 51, y: 74, font: '80px serif', color: '#000000', align: 'left', maxWidth: 40, lineHeight: 4.8 },
-      mobileNo:       { x: 51,   y: 82.5, font: '80px serif',  color: '#000000', align: 'left'   },
-      centerMobileNo: { x: 51,   y: 85.8, font: '80px serif',  color: '#000000', align: 'left'   },
+      mobileNo:       { x: 51,   y: 82.5, font: '80px serif',  color: '#000000', align: 'left',   maxWidth: 95 },
+      centerMobileNo: { x: 51,   y: 85.8, font: '80px serif',  color: '#000000', align: 'left',   maxWidth: 95 },
     }
   };
 
@@ -59,14 +59,59 @@
 
   function _pct(val, total) { return (val / 100) * total; }
 
+  // Shrinks `font` so `text` measures within maxWidthPx — the actual typeface a
+  // browser substitutes for a generic family like "serif" varies across
+  // devices/OSes and can render wider than expected.
+  const MIN_FONT_PX = 30;
+  function _fitFont(text, font, maxWidthPx, minFontPx) {
+    const match = /^((?:bold\s+)?\d+(?:\.\d+)?)px(.*)$/.exec(font);
+    if (!match) return font;
+    const sizeMatch = /(\d+(?:\.\d+)?)$/.exec(match[1]);
+    if (!sizeMatch) return font;
+    const prefix = match[1].slice(0, match[1].length - sizeMatch[1].length);
+    const baseSize = parseFloat(sizeMatch[1]);
+    const rest = match[2];
+    _ctx.font = font;
+    const width = _ctx.measureText(text).width;
+    if (width <= maxWidthPx || width === 0) return font;
+    const fitSize = Math.max(minFontPx, Math.floor(baseSize * (maxWidthPx / width)));
+    return `${prefix}${fitSize}px${rest}`;
+  }
+
   function _drawField(field, text) {
     if (!text || !_ctx) return;
     const W = _canvas.width, H = _canvas.height;
     _ctx.save();
-    _ctx.font      = field.font;
+    let font = field.font;
+    const x = _pct(field.x, W);
+    const y = _pct(field.y, H);
+    const align = field.align || 'left';
+    let maxWidthPx = null;
+    let boxX = x;
+    if (field.maxWidth) {
+      if (align === 'center') {
+        maxWidthPx = _pct(field.maxWidth, W);
+        boxX = x - maxWidthPx / 2;
+      } else if (align === 'right') {
+        maxWidthPx = x;
+        boxX = 0;
+      } else {
+        maxWidthPx = _pct(field.maxWidth, W) - x;
+      }
+      font = _fitFont(text, field.font, maxWidthPx, field.minFont || MIN_FONT_PX);
+    }
+    _ctx.font      = font;
     _ctx.fillStyle = field.color;
-    _ctx.textAlign = field.align || 'left';
-    _ctx.fillText(text, _pct(field.x, W), _pct(field.y, H));
+    _ctx.textAlign = align;
+    if (maxWidthPx) {
+      // Hard backstop: even if the font-shrink estimate is off, no pixel can
+      // render past the field's box once this clip is applied.
+      const fontPx = parseFloat(font) || 0;
+      _ctx.beginPath();
+      _ctx.rect(boxX, y - fontPx * 0.85, maxWidthPx, fontPx * 1.2);
+      _ctx.clip();
+    }
+    _ctx.fillText(text, x, y);
     _ctx.restore();
   }
 

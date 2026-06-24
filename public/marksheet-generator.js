@@ -23,15 +23,15 @@ var MarksheetGenerator = (() => {
 
     fields: {
       rollNumber:       { x: 73,   y: 28.5,  font: '100px serif', color: '#000000', align: 'left'   },
-      studentName:      { x: 30,   y: 25.7,  font: '100px serif', color: '#000000', align: 'left'   },
-      fatherName:       { x: 30,   y: 28.4,  font: '100px serif', color: '#000000', align: 'left'   },
-      motherName:       { x: 30,   y: 31.3,  font: '100px serif', color: '#000000', align: 'left'   },
+      studentName:      { x: 30,   y: 25.7,  font: '100px serif', color: '#000000', align: 'left', maxWidth: 68 },
+      fatherName:       { x: 30,   y: 28.4,  font: '100px serif', color: '#000000', align: 'left', maxWidth: 68 },
+      motherName:       { x: 30,   y: 31.3,  font: '100px serif', color: '#000000', align: 'left', maxWidth: 68 },
       dob:              { x: 73,   y: 31.3,  font: '100px serif', color: '#000000', align: 'left'   },
-      courseName:       { x: 30,   y: 37,    font: '100px serif', color: '#000000', align: 'left'   },
+      courseName:       { x: 30,   y: 37,    font: '100px serif', color: '#000000', align: 'left', maxWidth: 92 },
       courseDuration:   { x: 73,   y: 25.6,  font: '100px serif', color: '#000000', align: 'left'   },
       coursePeriodFrom: { x: 30,   y: 34,    font: '100px serif', color: '#000000', align: 'left'   },
       coursePeriodTo:   { x: 49,   y: 34,    font: '100px serif', color: '#000000', align: 'left'   },
-      instituteName:    { x: 30,   y: 39.8,  font: '100px serif', color: '#000000', align: 'left'   },
+      instituteName:    { x: 30,   y: 39.8,  font: '100px serif', color: '#000000', align: 'left', maxWidth: 92 },
       dateOfIssue:      { x: 19,   y: 92.5,  font: '100px serif', color: '#000000', align: 'left'   },
 
       totalPercentage:  { x: 80,   y: 77.7,  font: '100px serif', color: '#000000', align: 'left'   },
@@ -92,14 +92,46 @@ var MarksheetGenerator = (() => {
     return lines;
   }
 
+  // Shrinks `font` so `text` measures within maxWidthPx — the actual typeface a
+  // browser substitutes for a generic family like "serif" varies across
+  // devices/OSes and can render wider than expected.
+  const MIN_FONT_PX = 50;
+  function _fitFont(text, font, maxWidthPx, minFontPx) {
+    const match = /^(\d+(?:\.\d+)?)px(.*)$/.exec(font);
+    if (!match) return font;
+    const baseSize = parseFloat(match[1]);
+    const rest = match[2];
+    _ctx.font = font;
+    const width = _ctx.measureText(text).width;
+    if (width <= maxWidthPx || width === 0) return font;
+    const fitSize = Math.max(minFontPx, Math.floor(baseSize * (maxWidthPx / width)));
+    return `${fitSize}px${rest}`;
+  }
+
   function _drawField(field, text) {
     if (text == null || text === '' || !_ctx) return;
     const W = _canvas.width, H = _canvas.height;
     _ctx.save();
-    _ctx.font      = field.font;
+    let font = field.font;
+    const x = _pct(field.x, W);
+    const y = _pct(field.y, H);
+    let maxWidthPx = null;
+    if (field.maxWidth) {
+      maxWidthPx = _pct(field.maxWidth, W) - x;
+      font = _fitFont(String(text), field.font, maxWidthPx, field.minFont || MIN_FONT_PX);
+    }
+    _ctx.font      = font;
     _ctx.fillStyle = field.color;
     _ctx.textAlign = field.align || 'left';
-    _ctx.fillText(String(text), _pct(field.x, W), _pct(field.y, H));
+    if (maxWidthPx) {
+      // Hard backstop: even if the font-shrink estimate is off, no pixel can
+      // render past the field's box once this clip is applied.
+      const fontPx = parseFloat(font) || 0;
+      _ctx.beginPath();
+      _ctx.rect(x, y - fontPx * 0.85, maxWidthPx, fontPx * 1.2);
+      _ctx.clip();
+    }
+    _ctx.fillText(String(text), x, y);
     _ctx.restore();
   }
 

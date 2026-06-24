@@ -21,9 +21,9 @@ var TypingCertificateGenerator = (() => {
       // QR code — center of upper-left box on the template (x/y = center, as % of image)
       qrCode:             { x: 12.5, y: 45,   width: 12,  height: 45   },
       // Text fields — positions as % of image width/height
-      studentName:        { x: 63,   y: 52.3, font: '200px serif', color: '#000000', align: 'center' },
-      fatherHusbandName:  { x: 32,   y: 57,   font: '200px serif', color: '#000000', align: 'left'   },
-      motherName:         { x: 70,   y: 57,   font: '200px serif', color: '#000000', align: 'left'   },
+      studentName:        { x: 63,   y: 52.3, font: '200px serif', color: '#000000', align: 'center', maxWidth: 44 },
+      fatherHusbandName:  { x: 32,   y: 57,   font: '200px serif', color: '#000000', align: 'left',   maxWidth: 68 },
+      motherName:         { x: 70,   y: 57,   font: '200px serif', color: '#000000', align: 'left',   maxWidth: 95 },
       enrollmentNumber:   { x: 22.5, y: 77.5, font: '150px serif', color: '#000000', align: 'left'   },
       computerTyping:     { x: 22.5, y: 82,   font: '150px serif', color: '#000000', align: 'left'   },
       certificateNo:      { x: 22.5, y: 86.2, font: '150px serif', color: '#000000', align: 'left'   },
@@ -31,7 +31,7 @@ var TypingCertificateGenerator = (() => {
       sessionFrom:        { x: 74,   y: 61,   font: '200px serif', color: '#000000', align: 'left'   },
       sessionTo:          { x: 83,   y: 61,   font: '200px serif', color: '#000000', align: 'left'   },
       grade:              { x: 86,   y: 65,   font: '200px serif', color: '#000000', align: 'left'   },
-      studyCentre:        { x: 37,   y: 69.4, font: '200px serif', color: '#000000', align: 'left'   },
+      studyCentre:        { x: 37,   y: 69.4, font: '200px serif', color: '#000000', align: 'left',   maxWidth: 95 },
       wordsPerMinute:     { x: 28.5, y: 82,   font: '150px serif', color: '#000000', align: 'left'   },
     }
   };
@@ -131,14 +131,56 @@ var TypingCertificateGenerator = (() => {
     }
   }
 
+  // Shrinks `font` so `text` measures within maxWidthPx — the actual typeface a
+  // browser substitutes for a generic family like "serif" varies across
+  // devices/OSes and can render wider than expected.
+  const MIN_FONT_PX = 60;
+  function _fitFont(text, font, maxWidthPx, minFontPx) {
+    const match = /^(\d+(?:\.\d+)?)px(.*)$/.exec(font);
+    if (!match) return font;
+    const baseSize = parseFloat(match[1]);
+    const rest = match[2];
+    _ctx.font = font;
+    const width = _ctx.measureText(text).width;
+    if (width <= maxWidthPx || width === 0) return font;
+    const fitSize = Math.max(minFontPx, Math.floor(baseSize * (maxWidthPx / width)));
+    return `${fitSize}px${rest}`;
+  }
+
   function _drawField(field, text) {
     if (!text || !_ctx) return;
     const W = _canvas.width, H = _canvas.height;
     _ctx.save();
-    _ctx.font      = field.font;
+    let font = field.font;
+    const x = _pct(field.x, W);
+    const y = _pct(field.y, H);
+    const align = field.align || 'left';
+    let maxWidthPx = null;
+    let boxX = x;
+    if (field.maxWidth) {
+      if (align === 'center') {
+        maxWidthPx = _pct(field.maxWidth, W);
+        boxX = x - maxWidthPx / 2;
+      } else if (align === 'right') {
+        maxWidthPx = x;
+        boxX = 0;
+      } else {
+        maxWidthPx = _pct(field.maxWidth, W) - x;
+      }
+      font = _fitFont(text, field.font, maxWidthPx, field.minFont || MIN_FONT_PX);
+    }
+    _ctx.font      = font;
     _ctx.fillStyle = field.color;
-    _ctx.textAlign = field.align || 'left';
-    _ctx.fillText(text, _pct(field.x, W), _pct(field.y, H));
+    _ctx.textAlign = align;
+    if (maxWidthPx) {
+      // Hard backstop: even if the font-shrink estimate is off, no pixel can
+      // render past the field's box once this clip is applied.
+      const fontPx = parseFloat(font) || 0;
+      _ctx.beginPath();
+      _ctx.rect(boxX, y - fontPx * 0.85, maxWidthPx, fontPx * 1.2);
+      _ctx.clip();
+    }
+    _ctx.fillText(text, x, y);
     _ctx.restore();
   }
 

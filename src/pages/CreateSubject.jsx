@@ -62,7 +62,7 @@ export default function CreateSubject() {
         const s = res.data?.data || {};
 
         const extractedCourseId =
-          typeof s.course === "object"
+          s.course && typeof s.course === "object"
             ? s.course._id || s.course.id
             : s.course || s.courseId || "";
 
