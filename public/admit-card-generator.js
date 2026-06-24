@@ -24,12 +24,12 @@ var AdmitCardGenerator = (() => {
     fields: {
       photo:             { x: 74,   y: 25.5,   width: 14, height: 12 },
       rollNumber:        { x: 33,   y: 28.2,   font: '120px serif', color: '#000000', align: 'left' },
-      studentName:       { x: 33,   y: 30.3,   font: '120px serif', color: '#000000', align: 'left' },
-      fatherName:        { x: 33,   y: 32.2, font: '120px serif', color: '#000000', align: 'left' },
-      motherName:        { x: 33,   y: 34.5,   font: '120px serif', color: '#000000', align: 'left' },
-      courseName:        { x: 28,   y: 40.9,   font: '120px serif', color: '#000000', align: 'left' },
-      instituteName:     { x: 28,   y: 47.7,   font: '120px serif', color: '#000000', align: 'left' },
-      examCenterAddress: { x: 28,   y: 53,   font: '120px serif', color: '#000000', align: 'left' },
+      studentName:       { x: 33,   y: 30.3,   font: '120px serif', color: '#000000', align: 'left', maxWidth: 70 },
+      fatherName:        { x: 33,   y: 32.2, font: '120px serif', color: '#000000', align: 'left', maxWidth: 70 },
+      motherName:        { x: 33,   y: 34.5,   font: '120px serif', color: '#000000', align: 'left', maxWidth: 70 },
+      courseName:        { x: 28,   y: 40.9,   font: '120px serif', color: '#000000', align: 'left', maxWidth: 92 },
+      instituteName:     { x: 28,   y: 47.7,   font: '120px serif', color: '#000000', align: 'left', maxWidth: 92 },
+      examCenterAddress: { x: 28,   y: 53,   font: '120px serif', color: '#000000', align: 'left', maxWidth: 92 },
       examDate:          { x: 43,   y: 57.8, font: '120px serif', color: '#000000', align: 'left' },
       examTime:          { x: 43,   y: 60,   font: '120px serif', color: '#000000', align: 'left' },
       reportingTime:     { x: 43,   y: 62.2, font: '120px serif', color: '#000000', align: 'left' },
@@ -66,11 +66,32 @@ var AdmitCardGenerator = (() => {
 
   function _pct(val, total) { return (val / 100) * total; }
 
+  // Shrinks `font` (e.g. "120px serif") so `text` measures within maxWidthPx,
+  // since the actual typeface a browser substitutes for a generic family
+  // like "serif" varies across devices/OSes and can render wider than expected.
+  const MIN_FONT_PX = 40;
+  function _fitFont(text, font, maxWidthPx) {
+    const match = /^(\d+(?:\.\d+)?)px(.*)$/.exec(font);
+    if (!match) return font;
+    const baseSize = parseFloat(match[1]);
+    const rest = match[2];
+    _ctx.font = font;
+    const width = _ctx.measureText(text).width;
+    if (width <= maxWidthPx || width === 0) return font;
+    const fitSize = Math.max(MIN_FONT_PX, Math.floor(baseSize * (maxWidthPx / width)));
+    return `${fitSize}px${rest}`;
+  }
+
   function _drawField(field, text) {
     if (!text || !_ctx) return;
     const W = _canvas.width, H = _canvas.height;
     _ctx.save();
-    _ctx.font      = field.font;
+    let font = field.font;
+    if (field.maxWidth) {
+      const maxWidthPx = _pct(field.maxWidth, W) - _pct(field.x, W);
+      font = _fitFont(text, field.font, maxWidthPx);
+    }
+    _ctx.font      = font;
     _ctx.fillStyle = field.color;
     _ctx.textAlign = field.align || 'left';
     _ctx.fillText(text, _pct(field.x, W), _pct(field.y, H));
