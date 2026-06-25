@@ -17,6 +17,10 @@ function fmtDate(d) {
   return dt.toISOString().slice(0, 10);
 }
 
+// Strips any country code / non-digit characters and keeps the last 10
+// digits — the actual subscriber number regardless of a +91/91/0 prefix.
+const normalizeMobile = (raw) => (raw || "").replace(/\D/g, "").slice(-10);
+
 export default function EditStudentModal({
   student,
   courses,
@@ -90,7 +94,7 @@ export default function EditStudentModal({
       gender: s.gender || "",
       dob: fmtDate(s.dob),
       email: s.email || "",
-      mobile: (s.mobile || s.contact || "").replace(/^\+91/, ""),
+      mobile: normalizeMobile(s.mobile || s.contact),
       state: s.state || "",
       district: s.district || "",
       address: s.address || "",
@@ -121,8 +125,7 @@ export default function EditStudentModal({
   const handleChange = (e) => {
     const { name, value } = e.target;
     if (name === "mobile") {
-      const digits = value.replace(/\D/g, "").slice(0, 10);
-      setEditForm((prev) => ({ ...prev, mobile: digits }));
+      setEditForm((prev) => ({ ...prev, mobile: normalizeMobile(value) }));
       return;
     }
     setEditForm((prev) => ({ ...prev, [name]: value }));

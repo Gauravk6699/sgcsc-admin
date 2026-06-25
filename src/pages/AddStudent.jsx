@@ -84,6 +84,10 @@ const initialForm = {
 const MAX_PHOTO_SIZE_MB = 2;
 const MAX_PHOTO_BYTES = MAX_PHOTO_SIZE_MB * 1024 * 1024;
 
+// Strips any country code / non-digit characters and keeps the last 10
+// digits — the actual subscriber number regardless of a +91/91/0 prefix.
+const normalizeMobile = (raw) => (raw || "").replace(/\D/g, "").slice(-10);
+
 export default function AddStudent() {
   const [form, setForm] = useState(initialForm);
   const [courses, setCourses] = useState([]);
@@ -160,8 +164,7 @@ export default function AddStudent() {
 
     // Mobile: digits only, max 10
     if (name === "mobile") {
-      const digits = value.replace(/\D/g, "").slice(0, 10);
-      setForm((prev) => ({ ...prev, mobile: digits }));
+      setForm((prev) => ({ ...prev, mobile: normalizeMobile(value) }));
       return;
     }
 
