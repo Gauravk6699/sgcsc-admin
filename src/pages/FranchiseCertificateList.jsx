@@ -730,7 +730,7 @@ export default function FranchiseCertificateList({ createMode }) {
   };
 
   const handleSaved = (saved) => {
-    if (!saved || !saved._id) {
+    if (!saved || !(saved._id || saved.id)) {
       setShowModal(false);
       loadAll();
       return;

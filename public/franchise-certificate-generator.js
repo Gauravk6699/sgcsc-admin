@@ -27,10 +27,15 @@ var FranchiseCertificateGenerator = (() => {
 
     fields: {
       // { x, y } as % of image dimensions. font is px at full resolution.
-      trainingCentreName: { x: 50,  y: 44, font: '200px serif',           color: '#000000', align: 'center' },
-      applicantName:      { x: 46,  y: 49.7, font: '200px serif',        color: '#000000', align: 'left' },
-      atcCode:            { x: 46,  y: 53.3, font: '200px serif',        color: '#000000', align: 'left' },
-      atcCode2:           { x: 29,  y: 87.8, font: '130px serif',        color: '#000000', align: 'left' },
+      // maxWidth (% of image width) enables auto-shrink-to-fit + a hard clip
+      // backstop so long text can never run off its printed box.
+      trainingCentreName: { x: 50,  y: 44, font: '200px serif',           color: '#000000', align: 'center', maxWidth: 80 },
+      // address position is a best-effort placement below trainingCentreName —
+      // verify against the actual template image and adjust x/y if needed.
+      address:            { x: 50,  y: 47, font: '140px serif',           color: '#000000', align: 'center', maxWidth: 80, minFont: 40 },
+      applicantName:      { x: 46,  y: 49.7, font: '200px serif',        color: '#000000', align: 'left',   maxWidth: 45 },
+      atcCode:            { x: 46,  y: 53.3, font: '200px serif',        color: '#000000', align: 'left',   maxWidth: 45 },
+      atcCode2:           { x: 29,  y: 87.8, font: '130px serif',        color: '#000000', align: 'left',   maxWidth: 30 },
       dateOfIssue:        { x: 29,  y: 89.6, font: '130px serif',        color: '#000000', align: 'left' },
       dateOfRenewal:      { x: 29,  y: 91.5, font: '130px serif',        color: '#000000', align: 'left' },
     }
@@ -91,23 +96,50 @@ var FranchiseCertificateGenerator = (() => {
     });
   }
 
+  // Shrinks `font` so `text` measures within maxWidthPx — the actual typeface a
+  // browser substitutes for a generic family like "serif" varies across
+  // devices/OSes and can render wider than expected.
+  const MIN_FONT_PX = 50;
+  function _fitFont(text, font, maxWidthPx, minFontPx) {
+    const match = /^(\d+(?:\.\d+)?)px(.*)$/.exec(font);
+    if (!match) return font;
+    const baseSize = parseFloat(match[1]);
+    const rest = match[2];
+    _ctx.font = font;
+    const width = _ctx.measureText(text).width;
+    if (width <= maxWidthPx || width === 0) return font;
+    const fitSize = Math.max(minFontPx, Math.floor(baseSize * (maxWidthPx / width)));
+    return `${fitSize}px${rest}`;
+  }
+
   function _drawField(field, text) {
     if (!text || !_ctx) return;
     const W = _canvas.width, H = _canvas.height;
     _ctx.save();
-    _ctx.font = field.font;
-    _ctx.fillStyle = field.color;
-
-    if (field.align === 'center') {
-      _ctx.textAlign = 'center';
-      _ctx.fillText(text, _pct(field.x, W), _pct(field.y, H));
-    } else if (field.align === 'right') {
-      _ctx.textAlign = 'right';
-      _ctx.fillText(text, _pct(field.x, W), _pct(field.y, H));
-    } else {
-      _ctx.textAlign = 'left';
-      _ctx.fillText(text, _pct(field.x, W), _pct(field.y, H));
+    let font = field.font;
+    const x = _pct(field.x, W);
+    const y = _pct(field.y, H);
+    const align = field.align || 'left';
+    let maxWidthPx = null;
+    let boxX = x;
+    if (field.maxWidth) {
+      maxWidthPx = _pct(field.maxWidth, W);
+      font = _fitFont(text, field.font, maxWidthPx, field.minFont || MIN_FONT_PX);
+      if (align === 'center') boxX = x - maxWidthPx / 2;
+      else if (align === 'right') boxX = x - maxWidthPx;
     }
+    _ctx.font = font;
+    _ctx.fillStyle = field.color;
+    _ctx.textAlign = align;
+    if (maxWidthPx) {
+      // Hard backstop: even if the font-shrink estimate is off, no pixel can
+      // render past the field's box once this clip is applied.
+      const fontPx = parseFloat(font) || 0;
+      _ctx.beginPath();
+      _ctx.rect(boxX, y - fontPx * 0.85, maxWidthPx, fontPx * 1.2);
+      _ctx.clip();
+    }
+    _ctx.fillText(text, x, y);
     _ctx.restore();
   }
 
@@ -119,6 +151,7 @@ var FranchiseCertificateGenerator = (() => {
         if (found) {
           return {
             trainingCentreName: found.trainingCentreName || found.instituteName || found.institutionName || '',
+            address:            found.address || '',
             applicantName:      found.applicantName || found.studentName || '',
             atcCode:            found.atcCode || '',
             atcCode2:           found.atcCode2 || '',
@@ -179,6 +212,7 @@ var FranchiseCertificateGenerator = (() => {
     const franchise = _resolveFranchiseData(franchiseOrId);
 
     _drawField(CONFIG.fields.trainingCentreName, franchise.trainingCentreName);
+    _drawField(CONFIG.fields.address,            franchise.address);
     _drawField(CONFIG.fields.applicantName,      franchise.applicantName);
     _drawField(CONFIG.fields.atcCode,            franchise.atcCode);
     _drawField(CONFIG.fields.atcCode2,           franchise.atcCode2);
