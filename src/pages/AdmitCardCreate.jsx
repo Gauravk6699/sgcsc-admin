@@ -207,6 +207,11 @@ export default function AdmitCardCreate() {
         if (selectedStudent.fatherName) setFatherName(selectedStudent.fatherName);
         if (selectedStudent.motherName) setMotherName(selectedStudent.motherName);
         if (selectedStudent.rollNumber) setRollNumber(selectedStudent.rollNumber);
+
+        // Resolve course details from the student's enrolled course
+        const c0 = selectedStudent.courses?.[0];
+        const cName = selectedStudent.courseName || c0?.courseName || '';
+        if (cName) setCourseName(cName);
       }
     }
   };

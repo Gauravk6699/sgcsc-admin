@@ -186,6 +186,15 @@ export default function IDCardCreate() {
         setAddress(selectedStudent.address || '');
         setMobileNo(selectedStudent.mobile || '');
         setCenterName(selectedStudent.centerName || '');
+
+        // Resolve course details from the student's enrolled course
+        const c0 = selectedStudent.courses?.[0];
+        const cName = selectedStudent.courseName || c0?.courseName || '';
+        if (cName) setCourseName(cName);
+        const sStart = selectedStudent.sessionStart || c0?.sessionStart;
+        const sEnd = selectedStudent.sessionEnd || c0?.sessionEnd;
+        if (sStart) setSessionFrom(new Date(sStart).getFullYear().toString());
+        if (sEnd) setSessionTo(new Date(sEnd).getFullYear().toString());
       }
     }
   };

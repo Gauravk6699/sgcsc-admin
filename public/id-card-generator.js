@@ -106,7 +106,10 @@
     if (maxWidthPx) {
       // Hard backstop: even if the font-shrink estimate is off, no pixel can
       // render past the field's box once this clip is applied.
-      const fontPx = parseFloat(font) || 0;
+      // (font can be e.g. "bold 82px serif" — parseFloat(font) alone would
+      // read "bold" and return NaN, so pull the px size out explicitly.)
+      const pxMatch = /(\d+(?:\.\d+)?)px/.exec(font);
+      const fontPx = pxMatch ? parseFloat(pxMatch[1]) : 0;
       _ctx.beginPath();
       _ctx.rect(boxX, y - fontPx * 0.85, maxWidthPx, fontPx * 1.2);
       _ctx.clip();

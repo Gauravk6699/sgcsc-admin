@@ -118,11 +118,22 @@ function TypingCertificateModal({ show, onClose, onSaved, initial }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
+  const [students, setStudents] = useState([]);
+  const [studentId, setStudentId] = useState('');
+
   useEffect(() => {
     if (!show) return;
 
     setError('');
     setSaving(false);
+    setStudentId('');
+
+    API.unwrap(API.get('/students'))
+      .then((data) => {
+        const arr = Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : [];
+        setStudents(arr);
+      })
+      .catch((err) => console.error('load students error (typing certificate):', err));
 
     if (initial) {
       setStudentName(initial.studentName || '');
@@ -156,6 +167,48 @@ function TypingCertificateModal({ show, onClose, onSaved, initial }) {
       setWordsPerMinute('');
     }
   }, [show, initial]);
+
+  const applyStudentFields = (student) => {
+    if (!student) return;
+    if (student.name) setStudentName(student.name);
+    if (student.fatherName) setFatherHusbandName(student.fatherName);
+    if (student.motherName) setMotherName(student.motherName);
+    setEnrollmentNumber(student.enrollmentNo || student.rollNumber || '');
+    const c0 = student.courses?.[0];
+    const sStart = student.sessionStart || c0?.sessionStart;
+    const sEnd = student.sessionEnd || c0?.sessionEnd;
+    if (sStart) setSessionFrom(new Date(sStart).getFullYear().toString());
+    if (sEnd) setSessionTo(new Date(sEnd).getFullYear().toString());
+  };
+
+  const handleSelectStudent = (e) => {
+    const id = e.target.value;
+    setStudentId(id);
+    if (id) {
+      const student = students.find((s) => (s._id || s.id) === id);
+      applyStudentFields(student);
+    }
+  };
+
+  const handleLookupStudent = () => {
+    const q = enrollmentNumber.trim().toLowerCase();
+    if (!q) {
+      setError('Enter an enrollment/roll number to look up.');
+      return;
+    }
+    const student = students.find(
+      (s) =>
+        (s.enrollmentNo || '').toLowerCase() === q ||
+        (s.rollNumber || '').toLowerCase() === q
+    );
+    if (!student) {
+      setError('No student found with that enrollment/roll number.');
+      return;
+    }
+    setError('');
+    setStudentId(student._id || student.id || '');
+    applyStudentFields(student);
+  };
 
   if (!show) return null;
 
@@ -318,6 +371,35 @@ function TypingCertificateModal({ show, onClose, onSaved, initial }) {
               )}
 
               <div className="row g-3">
+                <div className="col-md-6">
+                  <label className="form-label">
+                    Select Student (optional - auto-fills details)
+                  </label>
+                  <select
+                    className="form-select"
+                    value={studentId}
+                    onChange={handleSelectStudent}
+                  >
+                    <option value="">Select a student</option>
+                    {students.map((s) => (
+                      <option key={s._id || s.id} value={s._id || s.id}>
+                        {s.name || s.fullName || 'Student'}{' '}
+                        {s.rollNumber ? `(${s.rollNumber})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="col-md-6 d-flex align-items-end">
+                  <button
+                    type="button"
+                    className="btn btn-outline-secondary w-100"
+                    onClick={handleLookupStudent}
+                  >
+                    Look up by Enrollment Number
+                  </button>
+                </div>
+
                 <div className="col-md-6">
                   <label className="form-label">Student Name *</label>
                   <input

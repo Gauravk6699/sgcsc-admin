@@ -118,14 +118,90 @@ function CertificateModal({ show, onClose, onSaved, initial }) {
   const [form, setForm] = useState({});
   const [saving, setSaving] = useState(false);
   const [error, setError]   = useState('');
+  const [students, setStudents] = useState([]);
+  const [courses, setCourses] = useState([]);
+  const [studentId, setStudentId] = useState('');
 
   const currentYear = new Date().getFullYear();
   const years = Array.from({ length: 20 }, (_, i) => currentYear - 10 + i);
+
+  // Load students + courses once the modal opens, so a student can be
+  // looked up and the form auto-filled (name, course, course duration, etc.)
+  useEffect(() => {
+    if (!show) return;
+    const fetchLists = async () => {
+      try {
+        const [studentsRes, coursesRes] = await Promise.all([
+          API.get('/students'),
+          API.get('/courses'),
+        ]);
+        const stuData = studentsRes.data;
+        setStudents(Array.isArray(stuData) ? stuData : Array.isArray(stuData?.data) ? stuData.data : []);
+        const courseData = coursesRes.data;
+        setCourses(Array.isArray(courseData) ? courseData : Array.isArray(courseData?.data) ? courseData.data : []);
+      } catch (err) {
+        console.error('[CertModal] Failed to load students/courses:', err);
+      }
+    };
+    fetchLists();
+  }, [show]);
+
+  const resolveCourseDuration = (cName, courseRef) => {
+    const match = courses.find((c) => {
+      if (courseRef && (c._id === courseRef || c.id === courseRef)) return true;
+      return cName && (c.title || c.name || '').toLowerCase() === cName.toLowerCase();
+    });
+    return match?.duration || '';
+  };
+
+  const applyStudentFields = (student) => {
+    const c0 = student.courses?.[0];
+    const cName = student.courseName || c0?.courseName || '';
+    const courseRef = student.course || c0?.course;
+    const sStart = student.sessionStart || c0?.sessionStart;
+    const sEnd = student.sessionEnd || c0?.sessionEnd;
+    setForm((f) => ({
+      ...f,
+      name: student.name || f.name,
+      fatherName: student.fatherName || f.fatherName,
+      enrollmentNumber: student.enrollmentNo || student.rollNumber || f.enrollmentNumber,
+      courseName: cName || f.courseName,
+      courseDuration: cName ? (resolveCourseDuration(cName, courseRef) || f.courseDuration) : f.courseDuration,
+      sessionFrom: sStart ? String(new Date(sStart).getFullYear()) : f.sessionFrom,
+      sessionTo: sEnd ? String(new Date(sEnd).getFullYear()) : f.sessionTo,
+      coursePeriodFrom: sStart ? new Date(sStart).toISOString().slice(0, 10) : f.coursePeriodFrom,
+      coursePeriodTo: sEnd ? new Date(sEnd).toISOString().slice(0, 10) : f.coursePeriodTo,
+    }));
+  };
+
+  const handleSelectStudent = (e) => {
+    const id = e.target.value;
+    setStudentId(id);
+    if (!id) return;
+    const student = students.find((s) => (s._id || s.id) === id);
+    if (student) applyStudentFields(student);
+  };
+
+  const handleLookupStudent = () => {
+    const q = (form.enrollmentNumber || '').trim().toLowerCase();
+    if (!q) { setError('Enter an enrollment number to look up.'); return; }
+    const student = students.find(
+      (s) => (s.enrollmentNo || '').toLowerCase() === q || (s.rollNumber || '').toLowerCase() === q
+    );
+    if (student) {
+      setStudentId(student._id || student.id || '');
+      applyStudentFields(student);
+      setError('');
+    } else {
+      setError('No student found with this enrollment number.');
+    }
+  };
 
   useEffect(() => {
     if (!show) return;
     setError('');
     setSaving(false);
+    setStudentId('');
     setForm(initial ? {
       name:              initial.name              || '',
       fatherName:        initial.fatherName        || '',
@@ -246,6 +322,22 @@ function CertificateModal({ show, onClose, onSaved, initial }) {
             <div className="modal-body">
               {error && <div className="alert alert-danger">{error}</div>}
               <div className="row g-3">
+                <div className="col-md-6">
+                  <label className="form-label">Select Student (auto-fill)</label>
+                  <select className="form-select" value={studentId} onChange={handleSelectStudent}>
+                    <option value="">— Select a student —</option>
+                    {students.map((s) => (
+                      <option key={s._id || s.id} value={s._id || s.id}>
+                        {s.name} ({s.enrollmentNo || s.rollNumber})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="col-md-6 d-flex align-items-end">
+                  <button type="button" className="btn btn-outline-secondary w-100" onClick={handleLookupStudent}>
+                    Look up by Enrollment Number
+                  </button>
+                </div>
                 <div className="col-md-6">
                   <label className="form-label">Name *</label>
                   <input className="form-control" value={form.name || ''} onChange={set('name')} required />
