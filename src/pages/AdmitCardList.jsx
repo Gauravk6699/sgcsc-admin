@@ -525,7 +525,7 @@ const generateAdmitCardPDF = (card) => {
           top: 20px;
           right: 20px;
           padding: 10px 20px;
-          background-color: #007bff;
+          background-color: #123a5e;
           color: white;
           border: none;
           cursor: pointer;

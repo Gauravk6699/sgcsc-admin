@@ -89,7 +89,7 @@ export default function Members() {
       height: 50,
       borderRadius: "50%",
       overflow: "hidden",
-      backgroundColor: "#f1f1f1",
+      backgroundColor: "rgba(255,255,255,0.08)",
       display: "flex",
       alignItems: "center",
       justifyContent: "center",
@@ -114,7 +114,7 @@ export default function Members() {
         }}
       />
     ) : (
-      <span style={{ fontSize: 12, color: "#777" }}>
+      <span style={{ fontSize: 12, color: "var(--theme-body-text)" }}>
         No Image
       </span>
     )}

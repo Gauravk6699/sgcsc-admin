@@ -191,8 +191,8 @@ export default function StudentTable({ students, onEdit, onDelete, onView }) {
                           height: 56,
                           overflow: "hidden",
                           borderRadius: 8,
-                          border: "1px solid #dee2e6",
-                          backgroundColor: "#f8f9fa",
+                          border: "1px solid rgba(255,255,255,0.22)",
+                          backgroundColor: "rgba(255,255,255,0.08)",
                           cursor: "pointer",
                         }}
                       >

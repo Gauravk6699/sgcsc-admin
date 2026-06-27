@@ -72,8 +72,8 @@ export default function UploadAffiliation() {
       {message && (
         <div style={{
           padding: 10, marginBottom: 12,
-          background: message.type === 'error' ? '#fdecea' : '#e6ffed',
-          color: message.type === 'error' ? '#a70d2b' : '#0b6a2e',
+          background: message.type === 'error' ? 'var(--bs-danger-bg-subtle)' : 'var(--bs-success-bg-subtle)',
+          color: message.type === 'error' ? 'var(--bs-danger-text-emphasis)' : 'var(--bs-success-text-emphasis)',
           borderRadius: 6
         }}>
           {message.text}

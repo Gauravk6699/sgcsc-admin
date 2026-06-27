@@ -29,10 +29,10 @@ export default function ResetPassword() {
   };
 
   return (
-    <div className="d-flex justify-content-center align-items-center vh-100" style={{ background: 'linear-gradient(135deg, #dbeafe, #e9d5ff)' }}>
+    <div className="d-flex justify-content-center align-items-center vh-100" style={{ background: 'linear-gradient(135deg, var(--bs-primary-bg-subtle), var(--bs-info-bg-subtle))' }}>
       <div className="card shadow-lg p-4" style={{ width: '400px', borderRadius: '1rem' }}>
         <div className="text-center mb-4">
-          <div className="rounded-circle bg-gradient text-white d-flex justify-content-center align-items-center mx-auto" style={{ width: '60px', height: '60px', background: 'linear-gradient(to right, #3b82f6, #8b5cf6)', fontSize: '1.5rem', fontWeight: '700' }}>
+          <div className="rounded-circle bg-gradient text-white d-flex justify-content-center align-items-center mx-auto" style={{ width: '60px', height: '60px', background: 'linear-gradient(to right, var(--theme-primary), var(--theme-info))', fontSize: '1.5rem', fontWeight: '700' }}>
             🔒
           </div>
           <h3 className="mt-3">Reset Password</h3>

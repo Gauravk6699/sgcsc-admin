@@ -292,7 +292,7 @@ export default function MarksheetList() {
                   onClick={() => setShowViewModal(false)}
                 />
               </div>
-              <div className="modal-body text-center" style={{ overflow: 'auto', backgroundColor: '#f8f9fa' }}>
+              <div className="modal-body text-center" style={{ overflow: 'auto', backgroundColor: 'rgba(255,255,255,0.06)' }}>
                 {viewImage ? (
                   <img
                     src={viewImage}

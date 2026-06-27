@@ -40,13 +40,13 @@
 /* Certificate Preview Styles */
 .certificate-preview {
   background: #fff;
-  border: 3px double #1a365d !important;
+  border: 3px double var(--theme-primary) !important;
   border-radius: 8px;
   font-family: 'Times New Roman', serif;
 }
 
 .certificate-preview h5 {
-  color: #1a365d;
+  color: var(--theme-primary);
   font-size: 24px;
 }
 
@@ -68,11 +68,11 @@
 .certificate-preview .name {
   font-size: 22px;
   font-weight: bold;
-  color: #1a365d;
+  color: var(--theme-primary);
 }
 
 .certificate-preview h5.fw-bold {
-  color: #2d3748;
+  color: var(--theme-body-text);
   font-size: 18px;
 }
 

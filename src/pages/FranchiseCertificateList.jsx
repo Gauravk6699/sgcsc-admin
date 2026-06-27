@@ -449,7 +449,7 @@ function FranchiseCertificateViewModal({ show, onClose, certificate }) {
               * { margin: 0; padding: 0; box-sizing: border-box; }
               body { font-family: 'Times New Roman', serif; padding: 20px; }
               .certificate {
-                border: 5px double #1a365d;
+                border: 5px double #123a5e;
                 padding: 40px;
                 max-width: 800px;
                 margin: 0 auto;
@@ -458,7 +458,7 @@ function FranchiseCertificateViewModal({ show, onClose, certificate }) {
               }
               .certificate h1 {
                 font-size: 32px;
-                color: #1a365d;
+                color: #123a5e;
                 margin-bottom: 10px;
                 text-transform: uppercase;
               }
@@ -476,7 +476,7 @@ function FranchiseCertificateViewModal({ show, onClose, certificate }) {
               .certificate .name {
                 font-size: 28px;
                 font-weight: bold;
-                color: #1a365d;
+                color: #123a5e;
                 margin: 20px 0;
                 text-decoration: underline;
               }
