@@ -103,11 +103,15 @@ function FranchiseCertificateModal({ show, onClose, onSaved, initial }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
+  const [franchises, setFranchises] = useState([]);
+  const [selectedFranchiseId, setSelectedFranchiseId] = useState('');
+
   useEffect(() => {
     if (!show) return;
 
     setError('');
     setSaving(false);
+    setSelectedFranchiseId('');
 
     if (initial) {
       setFranchiseName(initial.franchiseName || '');
@@ -133,6 +137,35 @@ function FranchiseCertificateModal({ show, onClose, onSaved, initial }) {
       setDateOfRenewal('');
     }
   }, [show, initial]);
+
+  // Load franchises once the modal opens, so picking one can auto-fill the form.
+  useEffect(() => {
+    if (!show) return;
+    const fetchFranchises = async () => {
+      try {
+        const res = await API.get('/franchises');
+        const data = res.data;
+        const arr = Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : [];
+        setFranchises(arr);
+      } catch (err) {
+        console.error('Failed to load franchises:', err);
+      }
+    };
+    fetchFranchises();
+  }, [show]);
+
+  // ATC Code must match the franchise's Institute ID so the public
+  // verification page can look up this certificate later.
+  const handleSelectFranchise = (id) => {
+    setSelectedFranchiseId(id);
+    if (!id) return;
+    const f = franchises.find((x) => (x._id || x.id) === id);
+    if (!f) return;
+    setFranchiseName(f.instituteName || '');
+    setAddress(f.address || '');
+    setApplicantName(f.ownerName || '');
+    setAtcCode(f.instituteId || '');
+  };
 
   if (!show) return null;
 
@@ -260,6 +293,27 @@ function FranchiseCertificateModal({ show, onClose, onSaved, initial }) {
               )}
 
               <div className="row g-3">
+                {!initial && (
+                  <div className="col-12">
+                    <label className="form-label fw-semibold">Select Franchise (auto-fills details below)</label>
+                    <select
+                      className="form-select"
+                      value={selectedFranchiseId}
+                      onChange={(e) => handleSelectFranchise(e.target.value)}
+                    >
+                      <option value="">— Choose a franchise —</option>
+                      {franchises.map((f) => {
+                        const fid = f._id || f.id;
+                        return (
+                          <option key={fid} value={fid}>
+                            {f.instituteName} — {f.instituteId} ({f.status || 'pending'})
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </div>
+                )}
+
                 <div className="col-md-6">
                   <label className="form-label">Franchise Name *</label>
                   <input

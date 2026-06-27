@@ -1,5 +1,5 @@
 // src/pages/FranchiseCertificateCreate.jsx
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import API from "../api/axiosInstance";
 
@@ -88,10 +88,41 @@ export default function FranchiseCertificateCreate() {
   const [dateOfIssue, setDateOfIssue] = useState('');
   const [dateOfRenewal, setDateOfRenewal] = useState('');
 
+  const [franchises, setFranchises] = useState([]);
+  const [selectedFranchiseId, setSelectedFranchiseId] = useState('');
+
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
   const [messageType, setMessageType] = useState('info');
   const navigate = useNavigate();
+
+  // Load franchises once, so picking one can auto-fill the form below.
+  useEffect(() => {
+    const fetchFranchises = async () => {
+      try {
+        const res = await API.get('/franchises');
+        const data = res.data;
+        const arr = Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : [];
+        setFranchises(arr);
+      } catch (err) {
+        console.error('Failed to load franchises:', err);
+      }
+    };
+    fetchFranchises();
+  }, []);
+
+  // ATC Code must match the franchise's Institute ID so the public
+  // verification page can look up this certificate later.
+  const handleSelectFranchise = (id) => {
+    setSelectedFranchiseId(id);
+    if (!id) return;
+    const f = franchises.find((x) => (x._id || x.id) === id);
+    if (!f) return;
+    setFranchiseName(f.instituteName || '');
+    setAddress(f.address || '');
+    setApplicantName(f.ownerName || '');
+    setAtcCode(f.instituteId || '');
+  };
 
   const validate = () => {
     if (!franchiseName.trim()) {
@@ -194,6 +225,7 @@ export default function FranchiseCertificateCreate() {
       setAtcCode('');
       setDateOfIssue('');
       setDateOfRenewal('');
+      setSelectedFranchiseId('');
     } catch (err) {
       console.error('create franchise certificate error:', err);
       setMessageType('danger');
@@ -221,6 +253,26 @@ export default function FranchiseCertificateCreate() {
           <div className="card shadow-sm" style={{ maxWidth: 1000 }}>
             <div className="card-body">
               <form onSubmit={handleSubmit} className="row g-3">
+                {/* Auto-fill from existing franchise */}
+                <div className="col-12">
+                  <label className="form-label fw-semibold">Select Franchise (auto-fills details below)</label>
+                  <select
+                    className="form-select"
+                    value={selectedFranchiseId}
+                    onChange={(e) => handleSelectFranchise(e.target.value)}
+                  >
+                    <option value="">— Choose a franchise —</option>
+                    {franchises.map((f) => {
+                      const fid = f._id || f.id;
+                      return (
+                        <option key={fid} value={fid}>
+                          {f.instituteName} — {f.instituteId} ({f.status || 'pending'})
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+
                 {/* Franchise Details */}
                 <div className="col-12">
                   <h5 className="mb-3 text-primary">Franchise Details</h5>
