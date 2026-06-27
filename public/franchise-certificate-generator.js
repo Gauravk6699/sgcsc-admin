@@ -222,16 +222,27 @@ var FranchiseCertificateGenerator = (() => {
     return _canvas.toDataURL('image/jpeg', 0.95);
   }
 
+  // Wraps the rendered canvas in a PDF sized to match the certificate image
+  // exactly (no stretching/cropping), mirroring CertificateGenerator's approach.
+  function _canvasToPDF() {
+    const { jsPDF } = window.jspdf;
+    const imgData = _canvas.toDataURL('image/jpeg', 0.92);
+    const pdf = new jsPDF({
+      orientation: _canvas.width > _canvas.height ? 'landscape' : 'portrait',
+      unit: 'px',
+      format: [_canvas.width, _canvas.height],
+    });
+    pdf.addImage(imgData, 'JPEG', 0, 0, _canvas.width, _canvas.height, '', 'NONE');
+    return pdf;
+  }
+
   // ─────────────────────────────────────────────
-  // Generate and download single certificate
+  // Generate and download single certificate (as PDF)
   // ─────────────────────────────────────────────
   async function download(franchiseOrId) {
-    const dataURL = await getDataURL(franchiseOrId);
+    await getDataURL(franchiseOrId);
     const franchise = _resolveFranchiseData(franchiseOrId);
-    const link = document.createElement('a');
-    link.download = `franchise_certificate_${franchise.certificateNumber || 'unknown'}.jpg`;
-    link.href = dataURL;
-    link.click();
+    _canvasToPDF().save(`franchise_certificate_${franchise.atcCode || 'unknown'}.pdf`);
   }
 
   // ─────────────────────────────────────────────
