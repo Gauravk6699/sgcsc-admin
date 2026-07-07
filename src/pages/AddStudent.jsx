@@ -51,7 +51,7 @@ const initialForm = {
   motherName: "",
   dob: "",
   email: "",
-  mobile: "", 
+  mobile: "",
   state: "",
   district: "",
   address: "",
@@ -69,6 +69,7 @@ const initialForm = {
   isCertified: false,
   rollNumber: "",
   enrollmentNo: "",
+  certificateNo: "",
   feeAmount: 0,
   courses: [{
     courseId: "",
@@ -105,7 +106,7 @@ export default function AddStudent() {
 
   const navigate = useNavigate();
 
-  // ---------- Meta (courses + franchises) ----------
+  // ---------- Meta (courses + franchises + next numbers) ----------
   useEffect(() => {
     let mounted = true;
 
@@ -113,11 +114,11 @@ export default function AddStudent() {
       setLoadingMeta(true);
       setError("");
       try {
-        const [coursesRes, franchisesRes] = await Promise.allSettled([
+        const [coursesRes, franchisesRes, nextNumRes] = await Promise.allSettled([
           API.get("/courses"),
           API.get("/franchises"),
+          API.get("/students/next-numbers"),
         ]);
-
 
         if (mounted && coursesRes.status === "fulfilled") {
           const data = coursesRes.value.data;
@@ -127,6 +128,18 @@ export default function AddStudent() {
         if (mounted && franchisesRes.status === "fulfilled") {
           const data = franchisesRes.value.data;
           setFranchises(Array.isArray(data) ? data : data?.data || []);
+        }
+
+        if (mounted && nextNumRes.status === "fulfilled") {
+          const nums = nextNumRes.value.data?.data || nextNumRes.value.data;
+          if (nums) {
+            setForm((prev) => ({
+              ...prev,
+              rollNumber:   nums.rollNumber   || prev.rollNumber,
+              enrollmentNo: nums.enrollmentNo || prev.enrollmentNo,
+              certificateNo: nums.certificateNo || prev.certificateNo,
+            }));
+          }
         }
 
       } catch (err) {
@@ -291,12 +304,14 @@ export default function AddStudent() {
       setError("Roll number is required.");
       return false;
     }
-
     if (!form.enrollmentNo.trim()) {
       setError("Enrollment number is required.");
       return false;
     }
-
+    if (!form.certificateNo.trim()) {
+      setError("Certificate number is required.");
+      return false;
+    }
     if (!form.centerName.trim()) {
       setError("Center Name is required.");
       return false;
@@ -479,8 +494,8 @@ export default function AddStudent() {
             </div>
             <div className="col-lg-4 col-md-4">
               <label className="form-label">
-                Roll Number 
-                <span className="text-danger">*</span>
+                Roll Number <span className="text-danger">*</span>
+                <span className="badge bg-info text-dark ms-2" style={{ fontSize: '0.65rem' }}>Auto-generated</span>
               </label>
               <input
                 type="text"
@@ -490,10 +505,12 @@ export default function AddStudent() {
                 onChange={handleChange}
                 required
               />
+              <small className="text-muted">Editable — override if needed</small>
             </div>
             <div className="col-lg-4">
               <label className="form-label">
                 Enrollment Number <span className="text-danger">*</span>
+                <span className="badge bg-info text-dark ms-2" style={{ fontSize: '0.65rem' }}>Auto-generated</span>
               </label>
               <input
                 type="text"
@@ -501,9 +518,24 @@ export default function AddStudent() {
                 name="enrollmentNo"
                 value={form.enrollmentNo}
                 onChange={handleChange}
-                placeholder="Enter enrollment number"
                 required
               />
+              <small className="text-muted">Editable — override if needed</small>
+            </div>
+            <div className="col-lg-4">
+              <label className="form-label">
+                Certificate Number <span className="text-danger">*</span>
+                <span className="badge bg-info text-dark ms-2" style={{ fontSize: '0.65rem' }}>Auto-generated</span>
+              </label>
+              <input
+                type="text"
+                className="form-control"
+                name="certificateNo"
+                value={form.certificateNo}
+                onChange={handleChange}
+                required
+              />
+              <small className="text-muted">Editable — override if needed</small>
             </div>
 
           </div>
