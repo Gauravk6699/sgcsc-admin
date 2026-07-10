@@ -132,11 +132,11 @@ export function buildReceiptHTML(data) {
       <div class="center-address"><u>RAIPUR CHIRAIYAKOT MAU</u></div>
 
       <div class="student">
-        ${photo ? `<div class="photo"><img src="${photo}" alt="Student"/></div>` : ''}
+        <div class="photo"><img src="${photo || 'https://via.placeholder.com/90'}" alt="Student"/></div>
         <div class="details" style="flex:1">
           <div class="row"><span class="label">Student's Name</span>: ${studentName}</div>
-          ${fatherName ? `<div class="row"><span class="label">Father's Name</span>: ${fatherName}</div>` : ''}
-          ${dob        ? `<div class="row"><span class="label">Date of Birth</span>: ${fmt(dob)}</div>`    : ''}
+          <div class="row"><span class="label">Father's Name</span>: ${fatherName || 'N/A'}</div>
+          <div class="row"><span class="label">Date of Birth</span>: ${fmt(dob)}</div>
           <div class="row"><span class="label">Course Name</span>: ${courseName}</div>
           <div class="row"><span class="label">Session Start</span>: ${fmt(sessionStart) || sessionStart}</div>
           <div class="row"><span class="label">Receipt No</span>: ${receiptNo}</div>

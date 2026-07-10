@@ -27,20 +27,24 @@ export default function FeeReceipt() {
   // Save functionality
   const [saving, setSaving] = useState(false);
 
-  // Initialize monthly data when months are selected
-   const initializeMonthlyData = (monthsArray) => {
+  // Build a monthlyData object for the given months/year/fee/due without touching state
+  const buildMonthlyData = (monthsArray, year, fee, due) => {
     const newData = {};
-    const year = getSessionYear();
     monthsArray.forEach(index => {
       const monthNum = index + 1;
       // Format as YYYY-MM-DD for HTML date input
       newData[index] = {
         date: `${year}-${monthNum.toString().padStart(2, '0')}-01`,
-        paid: monthlyFee,
-        due: dueAmount
+        paid: fee,
+        due: due
       };
     });
-    setMonthlyData(newData);
+    return newData;
+  };
+
+  // Initialize monthly data when months are selected
+  const initializeMonthlyData = (monthsArray) => {
+    setMonthlyData(buildMonthlyData(monthsArray, getSessionYear(), monthlyFee, dueAmount));
   };
   
   // Update monthly data for a specific month
@@ -179,32 +183,41 @@ export default function FeeReceipt() {
       setSelectedStudent(student);
       setSearchTerm(student.name || "");
       setShowDropdown(false);
-      
+
       // Set session start from student's sessionStart or joinDate
-      if (student.sessionStart) {
-        setSessionStart(new Date(student.sessionStart).toISOString().slice(0, 10));
-      } else if (student.joinDate) {
-        setSessionStart(new Date(student.joinDate).toISOString().slice(0, 10));
-      } else {
-        setSessionStart(new Date().toISOString().slice(0, 10));
-      }
-      
+      const newSessionStart = student.sessionStart
+        ? new Date(student.sessionStart).toISOString().slice(0, 10)
+        : student.joinDate
+        ? new Date(student.joinDate).toISOString().slice(0, 10)
+        : new Date().toISOString().slice(0, 10);
+      setSessionStart(newSessionStart);
+
       // Handle multiple courses - set first course as selected by default
+      let newMonthlyFee = monthlyFee;
+      let newDueAmount = dueAmount;
       if (student.courses && student.courses.length > 0) {
         setSelectedCourse(student.courses[0]);
         const totalFee = student.courses.reduce((sum, c) => sum + (Number(c.feeAmount) || 0), 0);
         const totalPaid = student.courses.reduce((sum, c) => sum + (Number(c.amountPaid) || 0), 0);
         if (totalFee > 0) {
-          setMonthlyFee(Math.ceil(totalFee / 12));
-          setDueAmount(totalFee - totalPaid);
+          newMonthlyFee = Math.ceil(totalFee / 12);
+          newDueAmount = totalFee - totalPaid;
+          setMonthlyFee(newMonthlyFee);
+          setDueAmount(newDueAmount);
         }
       } else {
         setSelectedCourse(null);
         if (student.feeAmount) {
-          setMonthlyFee(Math.ceil(student.feeAmount / 12));
-          setDueAmount(student.feeAmount - (student.amountPaid || 0));
+          newMonthlyFee = Math.ceil(student.feeAmount / 12);
+          newDueAmount = student.feeAmount - (student.amountPaid || 0);
+          setMonthlyFee(newMonthlyFee);
+          setDueAmount(newDueAmount);
         }
       }
+
+      // Auto-fill Paid/Due for the selected months from the student's fee so
+      // Total Paid/Due populate immediately; still editable per month after.
+      setMonthlyData(buildMonthlyData(selectedMonths, new Date(newSessionStart).getFullYear(), newMonthlyFee, newDueAmount));
     };
 
     // Handle course selection change
@@ -213,10 +226,15 @@ export default function FeeReceipt() {
         const course = selectedStudent.courses[courseIndex];
         setSelectedCourse(course);
         // Update fee details based on selected course
+        let newMonthlyFee = monthlyFee;
+        let newDueAmount = dueAmount;
         if (course.feeAmount) {
-          setMonthlyFee(Math.ceil(course.feeAmount / 12));
-          setDueAmount(course.feeAmount - (course.amountPaid || 0));
+          newMonthlyFee = Math.ceil(course.feeAmount / 12);
+          newDueAmount = course.feeAmount - (course.amountPaid || 0);
+          setMonthlyFee(newMonthlyFee);
+          setDueAmount(newDueAmount);
         }
+        setMonthlyData(buildMonthlyData(selectedMonths, getSessionYear(), newMonthlyFee, newDueAmount));
       }
     };
 
