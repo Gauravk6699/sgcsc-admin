@@ -156,6 +156,7 @@ export default function CertificateCreate() {
     // Use centerName as the single org field
     setCenterName(student.centerName || student.atcName || student.center || '');
     setStudentPhoto(student.photo || '');
+    setCertificateNumber(student.certificateNo || '');
 
     if (student.courses && Array.isArray(student.courses) && student.courses.length > 0) {
       setFilteredCourses(student.courses.map(c => ({ _id: c._id, name: c.courseName || c.name })));
@@ -439,7 +440,9 @@ export default function CertificateCreate() {
                 <div className="col-md-6">
                   <label className="form-label">Certificate Number *</label>
                   <input type="text" className="form-control" value={certificateNumber}
-                    onChange={e => setCertificateNumber(e.target.value)} required />
+                    onChange={e => setCertificateNumber(e.target.value)}
+                    placeholder="Auto-filled from student record" required />
+                  <small className="text-muted">Auto-filled from student database — editable</small>
                 </div>
 
                 <div className="col-md-6">
